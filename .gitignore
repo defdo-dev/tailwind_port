@@ -25,3 +25,4 @@ tailwind_port-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 /bin/tailwindcss
+/priv/static/
