@@ -19,6 +19,12 @@ defmodule Defdo.TailwindPort do
   """
   # content: "../src/**/*.{html,js}"
   # config: "./assets/tailwind.config.js"
+  # Download file and put into bin directory ignore it by .gitignore
+  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-linux-arm64
+  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-linux-x64
+  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-macos-arm64
+  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-macos-x64
+  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-windows-x64.exe
   use GenServer, restart: :transient
   require Logger
 
@@ -38,7 +44,6 @@ defmodule Defdo.TailwindPort do
     {bin_path, assets_path, static_path} = paths()
 
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
-
 
     options =
       args
