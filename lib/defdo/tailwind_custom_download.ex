@@ -1,6 +1,6 @@
 defmodule Defdo.TailwindCustomDownload do
   require Logger
-  @latest_version "3.1.8"
+  @latest_version "3.2.2"
 
   @doc false
   # Latest known version at the time of publishing.
