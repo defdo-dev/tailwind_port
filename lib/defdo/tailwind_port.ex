@@ -52,7 +52,7 @@ defmodule Defdo.TailwindPort do
       |> maybe_add_default_options(["-o", "--output"], ["-o", "#{static_path}/css/app.css"])
       |> maybe_add_default_options(["-w", "--watch"], [])
       |> maybe_add_default_options(["-p", "--poll"], [])
-      |> maybe_add_default_options(["--content"], ["--content", "#{static_path}/html/**/*.{html,js}"])
+      |> maybe_add_default_options(["--content"], [])
       |> maybe_add_default_options(["--postcss"], [])
       |> maybe_add_default_options(["-m", "--minify"], [])
       |> maybe_add_default_options(["-c", "--config"], ["-c", "#{assets_path}/tailwind.config.js"])
@@ -89,10 +89,10 @@ defmodule Defdo.TailwindPort do
 
   # returns project paths
   defp paths do
-    project_path = File.cwd!()
+    project_path = :code.priv_dir(:tailwind_port)
     bin_path = Path.join([project_path, "bin"])
-    assets_path = Path.join([project_path, "assets"])
-    static_path = Path.join([project_path, "priv/static"])
+    assets_path = Path.join([project_path, "../", "assets"])
+    static_path = Path.join([project_path, "static"])
 
     {bin_path, assets_path, static_path}
   end

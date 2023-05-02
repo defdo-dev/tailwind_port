@@ -24,6 +24,16 @@ defmodule Defdo.TailwindCustomDownload do
     Application.get_env(:tailwind_port, :version, latest_version())
   end
 
+  def download(path) do
+    version = configured_version()
+    name = "tailwindcss-#{target()}"
+    url = "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
+
+    binary = fetch_body!(url)
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, binary, [:binary])
+    File.chmod(path, 0o755)
+  end
 
   # Defdo.TailwindCustomDownload.install()
   def install do
