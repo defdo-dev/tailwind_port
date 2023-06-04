@@ -28,6 +28,8 @@ defmodule Defdo.TailwindPort do
   use GenServer, restart: :transient
   require Logger
 
+  alias Defdo.TailwindCustomDownload
+
   # GenServer API
   def start_link(args \\ [], opts \\ []) do
     GenServer.start_link(__MODULE__, args, opts)
@@ -41,29 +43,33 @@ defmodule Defdo.TailwindPort do
   end
 
   def new(args) do
-    {bin_path, assets_path, static_path} = paths()
+    {bin_path, _assets_path, _static_path} = project_paths()
 
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
+
+    unless File.dir?(bin_path) && File.exists?(cmd) do
+      TailwindCustomDownload.download(cmd)
+    end
 
     options =
       args
       |> Keyword.get(:opts, [])
-      |> maybe_add_default_options(["-i", "--input"], ["-i", "#{assets_path}/css/app.css"])
-      |> maybe_add_default_options(["-o", "--output"], ["-o", "#{static_path}/css/app.css"])
+      |> maybe_add_default_options(["-i", "--input"], [])
+      |> maybe_add_default_options(["-o", "--output"], [])
       |> maybe_add_default_options(["-w", "--watch"], [])
       |> maybe_add_default_options(["-p", "--poll"], [])
       |> maybe_add_default_options(["--content"], [])
       |> maybe_add_default_options(["--postcss"], [])
       |> maybe_add_default_options(["-m", "--minify"], [])
-      |> maybe_add_default_options(["-c", "--config"], ["-c", "#{assets_path}/tailwind.config.js"])
+      |> maybe_add_default_options(["-c", "--config"], [])
       |> maybe_add_default_options(["--no-autoprefixer"], [])
-
 
     wrapper_command = "#{bin_path}/tailwind_cli.sh"
 
-    args = ["#{cmd}"] ++ options
+    args = ["#{cmd}" | options]
 
-    port = Port.open({:spawn_executable, wrapper_command}, [{:args, args}, :stream, :binary, :exit_status, :hide, :use_stdio, :stderr_to_stdout])
+    port = Port.open({:spawn_executable, wrapper_command}, [{:args, args}, :binary, :exit_status, :use_stdio, :stderr_to_stdout])
+
     Port.monitor(port)
 
     Logger.debug(["Running command #{wrapper_command} #{Enum.join(args, " ")}"], color: :magenta)
@@ -88,7 +94,7 @@ defmodule Defdo.TailwindPort do
   end
 
   # returns project paths
-  defp paths do
+  def project_paths do
     project_path = :code.priv_dir(:tailwind_port)
     bin_path = Path.join([project_path, "bin"])
     assets_path = Path.join([project_path, "../", "assets"])
@@ -109,14 +115,24 @@ defmodule Defdo.TailwindPort do
   def terminate(reason, %{port: port} = state) do
     Logger.info "** TERMINATE: #{inspect reason}. This is the last chance to clean up after this process."
     Logger.info "Final state: #{inspect state}"
-    Port.close(port)
-    port_info = Port.info(port)
 
-    if os_pid = port_info[:os_pid] do
-      Logger.warn "Orphaned OS process: #{os_pid}"
+    if Port.info(port) do
+      Port.close(port)
+
+      port
+      |> Port.info()
+      |> warn_if_orphaned()
+    else
+      Logger.debug("Port: #{port} does'n exist.")
     end
 
     :shutdown
+  end
+
+  defp warn_if_orphaned(port_info) do
+    if os_pid = port_info[:os_pid] do
+      Logger.warn "Orphaned OS process: #{os_pid}"
+    end
   end
 
   # This callback handles data incoming from the command's STDOUT

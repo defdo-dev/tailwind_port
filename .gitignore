@@ -28,3 +28,4 @@ tailwind_port-*.tar
 /tmp/
 /bin/tailwindcss
 /priv/static/
+/priv/bin

@@ -1,6 +1,6 @@
 defmodule Defdo.TailwindCustomDownload do
   require Logger
-  @latest_version "3.2.2"
+  @latest_version "3.3.2"
 
   @doc false
   # Latest known version at the time of publishing.
@@ -40,7 +40,7 @@ defmodule Defdo.TailwindCustomDownload do
     version = configured_version()
     name = "tailwindcss-#{target()}"
     url = "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
-    bin_path = bin_path() |> IO.inspect()
+    bin_path = bin_path()
     tailwind_config_path = Path.expand("assets/tailwind.config.js")
     binary = fetch_body!(url)
     File.mkdir_p!(Path.dirname(bin_path))
