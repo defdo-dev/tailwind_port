@@ -1,4 +1,5 @@
 defmodule TailwindPort.MixProject do
+  @moduledoc false
   use Mix.Project
 
   @organization "defdo"
