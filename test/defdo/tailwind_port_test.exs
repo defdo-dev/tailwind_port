@@ -5,7 +5,7 @@ defmodule Defdo.TailwindPortTest do
 
   @tag :capture_log
   test "initialize / terminate port" do
-    assert {:ok, %{exit_status: nil, latest_output: nil, port: port}} = TailwindPort.init []
+    assert {:ok, %{exit_status: nil, latest_output: nil, port: port}} = TailwindPort.init([])
     refute is_nil(Port.info(port))
 
     assert :shutdown = TailwindPort.terminate("We complete our job", %{port: port})
@@ -21,7 +21,8 @@ defmodule Defdo.TailwindPortTest do
 
     opts = ["-i", input, "-o", output, "-c", config, "--content", content, "-m"]
 
-    assert {:ok, %{exit_status: nil, latest_output: nil, port: port}} = TailwindPort.init [opts: opts]
+    assert {:ok, %{exit_status: nil, latest_output: nil, port: port}} =
+             TailwindPort.init(opts: opts)
 
     # We must improve time relaying on some startup monitor for waiting to the execution of the tailwind-cli.
     Process.sleep(3000)

@@ -47,9 +47,7 @@ defmodule Defdo.TailwindCustomDownload do
     File.write!(bin_path, binary, [:binary])
     File.chmod(bin_path, 0o755)
 
-
     File.mkdir_p!("assets/css")
-
 
     unless File.exists?(tailwind_config_path) do
       File.write!(tailwind_config_path, """
@@ -76,6 +74,7 @@ defmodule Defdo.TailwindCustomDownload do
       """)
     end
   end
+
   # Available targets:
   #  tailwindcss-linux-arm64
   #  tailwindcss-linux-x64

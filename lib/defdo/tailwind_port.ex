@@ -39,7 +39,7 @@ defmodule Defdo.TailwindPort do
   def init(command_args \\ []) do
     Process.flag(:trap_exit, true)
 
-    {:ok, %{port: new(command_args), latest_output: nil, exit_status: nil} }
+    {:ok, %{port: new(command_args), latest_output: nil, exit_status: nil}}
   end
 
   def new(args) do
@@ -68,7 +68,14 @@ defmodule Defdo.TailwindPort do
 
     args = ["#{cmd}" | options]
 
-    port = Port.open({:spawn_executable, wrapper_command}, [{:args, args}, :binary, :exit_status, :use_stdio, :stderr_to_stdout])
+    port =
+      Port.open({:spawn_executable, wrapper_command}, [
+        {:args, args},
+        :binary,
+        :exit_status,
+        :use_stdio,
+        :stderr_to_stdout
+      ])
 
     Port.monitor(port)
 
@@ -89,7 +96,7 @@ defmodule Defdo.TailwindPort do
 
   defp options_empty?(options, keys) do
     options
-    |> Enum.filter(& &1 in keys)
+    |> Enum.filter(&(&1 in keys))
     |> Enum.empty?()
   end
 
@@ -113,8 +120,11 @@ defmodule Defdo.TailwindPort do
   # the underlying software via stdin
   # (on the positive side, software that reads from stdin typically terminates when stdin closes).
   def terminate(reason, %{port: port} = state) do
-    Logger.info "** TERMINATE: #{inspect reason}. This is the last chance to clean up after this process."
-    Logger.info "Final state: #{inspect state}"
+    Logger.info(
+      "** TERMINATE: #{inspect(reason)}. This is the last chance to clean up after this process."
+    )
+
+    Logger.info("Final state: #{inspect(state)}")
 
     if Port.info(port) do
       Port.close(port)
@@ -131,19 +141,19 @@ defmodule Defdo.TailwindPort do
 
   defp warn_if_orphaned(port_info) do
     if os_pid = port_info[:os_pid] do
-      Logger.warn "Orphaned OS process: #{os_pid}"
+      Logger.warning("Orphaned OS process: #{os_pid}")
     end
   end
 
   # This callback handles data incoming from the command's STDOUT
   def handle_info({port, {:data, text_line}}, %{port: port} = state) do
-    Logger.info "Data: #{inspect text_line}"
+    Logger.info("Data: #{inspect(text_line)}")
     {:noreply, %{state | latest_output: String.trim(text_line)}}
   end
 
   # This callback tells us when the process exits
   def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
-    Logger.info "Port exit: :exit_status: #{status}"
+    Logger.info("Port exit: :exit_status: #{status}")
 
     new_state = %{state | exit_status: status}
 
@@ -151,17 +161,17 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_info({:DOWN, _ref, :port, port, :normal}, state) do
-    Logger.info "Handled :DOWN message from port: #{inspect port}"
+    Logger.info("Handled :DOWN message from port: #{inspect(port)}")
     {:noreply, state}
   end
 
   def handle_info({:EXIT, port, :normal}, state) do
-    Logger.info "handle_info: EXIT - #{port}"
+    Logger.info("handle_info: EXIT - #{port}")
     {:noreply, state}
   end
 
   def handle_info(msg, state) do
-    Logger.info "Unhandled message: #{inspect msg}"
+    Logger.info("Unhandled message: #{inspect(msg)}")
     {:noreply, state}
   end
 end
