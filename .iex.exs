@@ -6,7 +6,7 @@ IEx.configure(
   default_prompt:
     [
       # ANSI CHA, move cursor to column 1
-      "\e[G",
+      # "\e[G",
       :magenta,
       # IEx prompt variable
       "%prefix",
