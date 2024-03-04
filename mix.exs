@@ -7,7 +7,7 @@ defmodule TailwindPort.MixProject do
   def project do
     [
       app: :tailwind_port,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -41,7 +41,7 @@ defmodule TailwindPort.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, inets: :optional, ssl: :optional],
       mod: {TailwindPort.Application, []}
     ]
   end
