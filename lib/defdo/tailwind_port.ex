@@ -166,12 +166,23 @@ defmodule Defdo.TailwindPort do
   end
 
   # This callback handles data incoming from the command's STDOUT
-  def handle_info({port, {:data, text_line}}, %{port: port} = state) do
-    if String.contains?(text_line, "{") or String.contains?(text_line, "}") do
-      Logger.info(["CSS:", "#{inspect(text_line)}"])
+  def handle_info({port, {:data, data}}, %{port: port} = state) do
+    if String.contains?(data, "{") or String.contains?(data, "}") do
+      Logger.debug(["CSS:", "#{inspect(data)}"])
+      :telemetry.execute(
+        [:tailwind_port, :css, :done],
+        %{data: data},
+        %{port: port}
+      )
+    else
+      :telemetry.execute(
+        [:tailwind_port, :other, :done],
+        %{data: data},
+        %{port: port}
+      )
     end
 
-    {:noreply, %{state | latest_output: String.trim(text_line)}}
+    {:noreply, %{state | latest_output: String.trim(data)}}
   end
 
   # This callback tells us when the process exits

@@ -49,6 +49,7 @@ defmodule TailwindPort.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:telemetry, "~> 1.2.1"},
       {:castore, ">= 0.0.0"},
       {:ex_doc, ">= 0.0.0", only: [:dev, :docs]}
     ]
