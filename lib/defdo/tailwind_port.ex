@@ -53,9 +53,10 @@ defmodule Defdo.TailwindPort do
       TailwindCustomDownload.download(cmd)
     end
 
+    opts = Keyword.get(args, :opts, [])
+
     options =
-      args
-      |> Keyword.get(:opts, [])
+      opts
       |> maybe_add_default_options(["-i", "--input"], [])
       |> maybe_add_default_options(["-o", "--output"], [])
       |> maybe_add_default_options(["-w", "--watch"], [])
@@ -67,9 +68,9 @@ defmodule Defdo.TailwindPort do
       |> maybe_add_default_options(["--no-autoprefixer"], [])
 
     {command, args} =
-      if "--no-wrap" in options do
+      if "-i" in opts || "--input" in opts do
         # direct call binary
-        {cmd, Enum.reject(options, &(&1 == "--no-wrap"))}
+        {cmd, options}
       else
         # Wraps command
         {"#{bin_path}/tailwind_cli.sh", ["#{cmd}" | options]}
