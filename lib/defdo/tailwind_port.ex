@@ -31,8 +31,10 @@ defmodule Defdo.TailwindPort do
   alias Defdo.TailwindCustomDownload
 
   # GenServer API
-  def start_link(args \\ [], opts \\ []) do
-    GenServer.start_link(__MODULE__, args, opts)
+  def start_link(args \\ []) do
+    {name, args} = get_from_args(args, :name, __MODULE__)
+
+    GenServer.start_link(__MODULE__, args, name: name)
   end
 
   @spec init(command_args :: keyword()) :: {:ok, map()}
@@ -64,12 +66,17 @@ defmodule Defdo.TailwindPort do
       |> maybe_add_default_options(["-c", "--config"], [])
       |> maybe_add_default_options(["--no-autoprefixer"], [])
 
-    wrapper_command = "#{bin_path}/tailwind_cli.sh"
-
-    args = ["#{cmd}" | options]
+    {command, args} =
+      if "--no-wrap" in options do
+        # direct call binary
+        {cmd, Enum.reject(options, &(&1 == "--no-wrap"))}
+      else
+        # Wraps command
+        {"#{bin_path}/tailwind_cli.sh", ["#{cmd}" | options]}
+      end
 
     port =
-      Port.open({:spawn_executable, wrapper_command}, [
+      Port.open({:spawn_executable, command}, [
         {:args, args},
         :binary,
         :exit_status,
@@ -79,11 +86,19 @@ defmodule Defdo.TailwindPort do
 
     Port.monitor(port)
 
-    Logger.debug(["Running command #{wrapper_command} #{Enum.join(args, " ")}"], color: :magenta)
+    Logger.debug(["Running command #{command} #{Enum.join(args, " ")}"], color: :magenta)
 
-    Logger.debug(["Running command ", Path.basename(wrapper_command), " Port is monitored."])
+    Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
 
     port
+  end
+
+  defp get_from_args(list, key, default) when is_list(list) do
+    if element = list[key] do
+      {element, Enum.reject(list, &(&1 == key))}
+    else
+      {default, list}
+    end
   end
 
   defp maybe_add_default_options(options, keys_to_validate, default) do
@@ -133,10 +148,15 @@ defmodule Defdo.TailwindPort do
       |> Port.info()
       |> warn_if_orphaned()
     else
-      Logger.debug("Port: #{port} does'n exist.")
+      Logger.debug("Port: #{inspect(port)} does'n exist.")
     end
 
     :shutdown
+  end
+
+  # Complete execution via GenServer
+  def terminate(name \\ __MODULE__) do
+    GenServer.stop(name)
   end
 
   defp warn_if_orphaned(port_info) do
@@ -147,7 +167,10 @@ defmodule Defdo.TailwindPort do
 
   # This callback handles data incoming from the command's STDOUT
   def handle_info({port, {:data, text_line}}, %{port: port} = state) do
-    Logger.info("Data: #{inspect(text_line)}")
+    if String.contains?(text_line, "{") or String.contains?(text_line, "}") do
+      Logger.info(["CSS:", "#{inspect(text_line)}"])
+    end
+
     {:noreply, %{state | latest_output: String.trim(text_line)}}
   end
 
@@ -166,7 +189,7 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_info({:EXIT, port, :normal}, state) do
-    Logger.info("handle_info: EXIT - #{port}")
+    Logger.info("handle_info: EXIT - #{inspect(port)}")
     {:noreply, state}
   end
 
