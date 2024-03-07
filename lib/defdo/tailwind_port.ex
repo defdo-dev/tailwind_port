@@ -172,14 +172,14 @@ defmodule Defdo.TailwindPort do
       Logger.debug(["CSS:", "#{inspect(data)}"])
       :telemetry.execute(
         [:tailwind_port, :css, :done],
-        %{data: data},
-        %{port: port}
+        %{},
+        %{port: port, data: data}
       )
     else
       :telemetry.execute(
         [:tailwind_port, :other, :done],
-        %{data: data},
-        %{port: port}
+        %{},
+        %{port: port, data: data}
       )
     end
 
