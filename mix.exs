@@ -41,7 +41,7 @@ defmodule TailwindPort.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, inets: :optional, ssl: :optional],
+      extra_applications: [:logger, runtime_tools: :optional, inets: :optional, ssl: :optional, observer: :optional, wx: :optional],
       mod: {TailwindPort.Application, []}
     ]
   end
