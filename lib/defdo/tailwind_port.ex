@@ -98,28 +98,6 @@ defmodule Defdo.TailwindPort do
     GenServer.call(name, :get_state)
   end
 
-  defp get_from_args(list, key, default) when is_list(list) do
-    if element = list[key] do
-      {element, Enum.reject(list, &(&1 == key))}
-    else
-      {default, list}
-    end
-  end
-
-  defp maybe_add_default_options(options, keys_to_validate, default) do
-    if options_empty?(options, keys_to_validate) do
-      options ++ default
-    else
-      options
-    end
-  end
-
-  defp options_empty?(options, keys) do
-    options
-    |> Enum.filter(&(&1 in keys))
-    |> Enum.empty?()
-  end
-
   # returns project paths
   def project_paths do
     project_path = :code.priv_dir(:tailwind_port)
@@ -164,12 +142,6 @@ defmodule Defdo.TailwindPort do
     GenServer.stop(name)
   end
 
-  defp warn_if_orphaned(port_info) do
-    if os_pid = port_info[:os_pid] do
-      Logger.warning("Orphaned OS process: #{os_pid}")
-    end
-  end
-
   @doc """
   Obtain a random temporal directory structure
   """
@@ -197,6 +169,10 @@ defmodule Defdo.TailwindPort do
     else
       fs
     end
+  end
+
+  def handle_call(:get_state, _from, state) do
+    {:reply, state, state}
   end
 
   # This callback handles data incoming from the command's STDOUT
@@ -244,5 +220,33 @@ defmodule Defdo.TailwindPort do
   def handle_info(msg, state) do
     Logger.info("Unhandled message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  defp warn_if_orphaned(port_info) do
+    if os_pid = port_info[:os_pid] do
+      Logger.warning("Orphaned OS process: #{os_pid}")
+    end
+  end
+
+  defp get_from_args(list, key, default) when is_list(list) do
+    if element = list[key] do
+      {element, Enum.reject(list, &(&1 == key))}
+    else
+      {default, list}
+    end
+  end
+
+  defp maybe_add_default_options(options, keys_to_validate, default) do
+    if options_empty?(options, keys_to_validate) do
+      options ++ default
+    else
+      options
+    end
+  end
+
+  defp options_empty?(options, keys) do
+    options
+    |> Enum.filter(&(&1 in keys))
+    |> Enum.empty?()
   end
 end
