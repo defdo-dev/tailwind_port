@@ -125,13 +125,7 @@ defmodule Defdo.TailwindPort do
   # Note the tailwind_cli.sh above hijacks stdin, so you won't be able to communicate with
   # the underlying software via stdin
   # (on the positive side, software that reads from stdin typically terminates when stdin closes).
-  def terminate(reason, %{port: port} = state) do
-    Logger.info(
-      "** TERMINATE: #{inspect(reason)}. This is the last chance to clean up after this process."
-    )
-
-    Logger.info("Final state: #{inspect(state)}")
-
+  def terminate(reason, %{port: port}) do
     if Port.info(port) do
       Port.close(port)
 
@@ -142,7 +136,7 @@ defmodule Defdo.TailwindPort do
       Logger.debug("Port: #{inspect(port)} does'n exist.")
     end
 
-    :shutdown
+    {:shutdown, reason}
   end
 
   # Complete execution via GenServer
