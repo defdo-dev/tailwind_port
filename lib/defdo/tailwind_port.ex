@@ -41,7 +41,7 @@ defmodule Defdo.TailwindPort do
   def init(command_args \\ []) do
     Process.flag(:trap_exit, true)
 
-    {:ok, %{port: new(command_args), latest_output: nil, exit_status: nil}}
+    {:ok, %{port: new(command_args), latest_output: nil, exit_status: nil, fs: random_fs()}}
   end
 
   def new(args) do
@@ -92,6 +92,10 @@ defmodule Defdo.TailwindPort do
     Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
 
     port
+  end
+
+  def state(name \\ __MODULE__) do
+    GenServer.call(name, :get_state)
   end
 
   defp get_from_args(list, key, default) when is_list(list) do
@@ -166,24 +170,56 @@ defmodule Defdo.TailwindPort do
     end
   end
 
+  @doc """
+  Obtain a random temporal directory structure
+  """
+  def random_fs do
+    base_path = System.tmp_dir()
+    random_dir = :crypto.strong_rand_bytes(10) |> Base.encode64(padding: false)
+    path = [base_path, random_dir] |> Enum.reject(&is_nil/1) |> Path.join()
+
+    %{
+      base_path: base_path,
+      dir: random_dir,
+      path: path,
+      path_exists: File.exists?(path)
+    }
+  end
+
+  @doc """
+  Initialize a directory structure
+  """
+  def init_fs(fs \\ random_fs())
+      when is_map_key(fs, :base_path) and is_map_key(fs, :dir) and is_map_key(fs, :path) and
+             is_map_key(fs, :path_exists) do
+    if :ok == File.mkdir_p(fs.path) do
+      %{fs | path_exists: File.exists?(fs.path)}
+    else
+      fs
+    end
+  end
+
   # This callback handles data incoming from the command's STDOUT
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     if String.contains?(data, "{") or String.contains?(data, "}") do
       Logger.debug(["CSS:", "#{inspect(data)}"])
+
       :telemetry.execute(
         [:tailwind_port, :css, :done],
         %{},
         %{port: port, data: data}
       )
+
+      {:noreply, %{state | latest_output: String.trim(data)}}
     else
       :telemetry.execute(
         [:tailwind_port, :other, :done],
         %{},
         %{port: port, data: data}
       )
-    end
 
-    {:noreply, %{state | latest_output: String.trim(data)}}
+      {:noreply, state}
+    end
   end
 
   # This callback tells us when the process exits
