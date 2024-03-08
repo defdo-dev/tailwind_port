@@ -34,17 +34,26 @@ defmodule Defdo.TailwindPort do
   def start_link(args \\ []) do
     {name, args} = get_from_args(args, :name, __MODULE__)
 
-    GenServer.start_link(__MODULE__, args, name: name)
+    GenServer.start_link(__MODULE__, Keyword.get(args, :opts, []), name: name)
   end
 
-  @spec init(command_args :: keyword()) :: {:ok, map()}
-  def init(command_args \\ []) do
+  @spec init(args :: keyword()) :: {:ok, map()}
+
+  def init([]) do
     Process.flag(:trap_exit, true)
-
-    {:ok, %{port: new(command_args), latest_output: nil, exit_status: nil, fs: random_fs()}}
+    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()}}
   end
 
-  def new(args) do
+  def init(args) do
+    Process.flag(:trap_exit, true)
+    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()}, {:continue, {:new, args}}}
+  end
+
+  def new(name \\ __MODULE__, args) do
+    GenServer.call(name, {:new, args})
+  end
+
+  def new_port(args) do
     {bin_path, _assets_path, _static_path} = project_paths()
 
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
@@ -88,7 +97,6 @@ defmodule Defdo.TailwindPort do
     Port.monitor(port)
 
     Logger.debug(["Running command #{command} #{Enum.join(args, " ")}"], color: :magenta)
-
     Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
 
     port
@@ -161,18 +169,35 @@ defmodule Defdo.TailwindPort do
   @doc """
   Initialize a directory structure
   """
-  def init_fs(fs \\ random_fs())
-      when is_map_key(fs, :base_path) and is_map_key(fs, :dir) and is_map_key(fs, :path) and
-             is_map_key(fs, :path_exists) do
-    if :ok == File.mkdir_p(fs.path) do
-      %{fs | path_exists: File.exists?(fs.path)}
-    else
-      fs
-    end
+  def init_fs(name \\ __MODULE__) do
+    GenServer.call(name, :init_fs)
+  end
+
+  def handle_continue({:new, args}, state) do
+    {:noreply, %{state | port: new_port(args)}}
   end
 
   def handle_call(:get_state, _from, state) do
     {:reply, state, state}
+  end
+
+  def handle_call(:init_fs, _from, state) do
+    fs = state.fs
+    new_fs = if :ok == File.mkdir_p(fs.path) do
+      %{fs | path_exists: File.exists?(fs.path)}
+    else
+      fs
+    end
+    new_state = %{state | fs: new_fs}
+
+    {:reply, fs, new_state}
+  end
+
+  def handle_call({:new, args}, _from, state) do
+    port = new_port(args)
+    new_state = %{state | port: port}
+
+    {:reply, new_state, new_state}
   end
 
   # This callback handles data incoming from the command's STDOUT
@@ -230,7 +255,7 @@ defmodule Defdo.TailwindPort do
 
   defp get_from_args(list, key, default) when is_list(list) do
     if element = list[key] do
-      {element, Enum.reject(list, &(&1 == key))}
+      {element, list}
     else
       {default, list}
     end
