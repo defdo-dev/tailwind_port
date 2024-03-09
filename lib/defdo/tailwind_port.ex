@@ -34,7 +34,7 @@ defmodule Defdo.TailwindPort do
   def start_link(args \\ []) do
     {name, args} = get_from_args(args, :name, __MODULE__)
 
-    GenServer.start_link(__MODULE__, Keyword.get(args, :opts, []), name: name)
+    GenServer.start_link(__MODULE__, args, name: name)
   end
 
   @spec init(args :: keyword()) :: {:ok, map()}
@@ -50,7 +50,11 @@ defmodule Defdo.TailwindPort do
   end
 
   def new(name \\ __MODULE__, args) do
-    GenServer.call(name, {:new, [opts: args]})
+    unless Keyword.has_key?(args, :opts) do
+      Logger.warning("Keyword `opts` must contain the arguments required by tailwind_port to work as you expect, but it is not provided.")
+    end
+
+    GenServer.call(name, {:new, args})
   end
 
   def new_port(args) do
