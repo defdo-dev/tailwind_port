@@ -5,12 +5,12 @@ defmodule Defdo.TailwindPort.FS do
   @type t :: %__MODULE__{
           path: WorkFiles.path(),
           path_exists: boolean(),
-          work_files: WorkFiles.t()
+          working_files: WorkFiles.t()
         }
 
   defstruct path: nil,
             path_exists: false,
-            work_files: %WorkFiles{}
+            working_files: %WorkFiles{}
 
   @doc """
   Creates a new `FS` (FileSystem) struct, in order to keep related working paths.
@@ -19,7 +19,7 @@ defmodule Defdo.TailwindPort.FS do
 
       iex> opts = [
         path: "/tmp",
-        work_files: [
+        working_files: [
           input_css_path: "/tmp/app.css",
           tailwind_config_path: "/tmp/tailwind.config.js",
           content_path: "/tmp/index.html"
@@ -29,7 +29,7 @@ defmodule Defdo.TailwindPort.FS do
       iex> %Defdo.TailwindPort.FS{
         path: "/tmp",
         path_exists: true,
-        work_files: %Defdo.TailwindPort.WorkFiles{
+        working_files: %Defdo.TailwindPort.WorkFiles{
           input_css_path: "/tmp/app.css",
           tailwind_config_path: "/tmp/tailwind.config.js",
           content_path: "/tmp/index.html"
@@ -38,25 +38,25 @@ defmodule Defdo.TailwindPort.FS do
   """
   @spec new(opts :: keyword()) :: t()
   def new(opts) do
-    work_files = get_work_files(opts)
+    working_files = get_working_files(opts)
     path_exists = check_if_path_exists?(opts)
 
     new_opts =
       opts
-      |> Keyword.put(:work_files, work_files)
+      |> Keyword.put(:working_files, working_files)
       |> Keyword.put(:path_exists, path_exists)
 
     struct(__MODULE__, new_opts)
   end
 
-  def update(%__MODULE__{path: path, work_files: %WorkFiles{} = work_file} = struct, opts) do
-    work_files = update_work_files(work_file, opts)
+  def update(%__MODULE__{path: path, working_files: %WorkFiles{} = work_file} = struct, opts) do
+    working_files = update_working_files(work_file, opts)
 
     path_exists = check_if_path_exists?(opts, path)
 
     updated_opts =
       opts
-      |> Keyword.put(:work_files, work_files)
+      |> Keyword.put(:working_files, working_files)
       |> Keyword.put(:path_exists, path_exists)
 
     struct(struct, updated_opts)
@@ -83,14 +83,14 @@ defmodule Defdo.TailwindPort.FS do
     :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
   end
 
-  defp get_work_files(opts, default \\ []) do
-    work_files_opts = Keyword.get(opts, :work_files, default)
+  defp get_working_files(opts, default \\ []) do
+    working_files_opts = Keyword.get(opts, :working_files, default)
 
-    WorkFiles.new(work_files_opts)
+    WorkFiles.new(working_files_opts)
   end
 
-  defp update_work_files(struct, opts) do
-    work_file_opts = Keyword.get(opts, :work_files, [])
+  defp update_working_files(struct, opts) do
+    work_file_opts = Keyword.get(opts, :working_files, [])
 
     WorkFiles.update(struct, work_file_opts)
   end

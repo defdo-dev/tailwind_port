@@ -7,7 +7,7 @@ defmodule Defdo.TailwindPort.FSTest do
 
   @valid_opts [
     path: "/tmp",
-    work_files: [
+    working_files: [
       input_css_path: "/tmp/app.css",
       tailwind_config_path: "/tmp/tailwind.config.js",
       content_path: "/tmp/index.html"
@@ -16,7 +16,7 @@ defmodule Defdo.TailwindPort.FSTest do
 
   @updated_opts [
     path: "/tmp/defdo",
-    work_files: [
+    working_files: [
       input_css_path: "/tmp/defdo/app.css",
       tailwind_config_path: "/tmp/defdo/tailwind.config.js"
     ]
@@ -27,7 +27,7 @@ defmodule Defdo.TailwindPort.FSTest do
     assert %FS{
              path: "/tmp",
              path_exists: true,
-             work_files: %Defdo.TailwindPort.WorkFiles{
+             working_files: %Defdo.TailwindPort.WorkFiles{
                input_css_path: "/tmp/app.css",
                tailwind_config_path: "/tmp/tailwind.config.js",
                content_path: "/tmp/index.html"
@@ -49,7 +49,7 @@ defmodule Defdo.TailwindPort.FSTest do
     assert fs = %FS{} = FS.new(@valid_opts)
     assert updated_fs = FS.update(fs, @updated_opts)
     refute updated_fs.path_exists
-    assert updated_wf == updated_fs.work_files
+    assert updated_wf == updated_fs.working_files
     refute fs == updated_fs
 
     assert %{fs | path: "/tmp/defdo_tw_port", path_exists: false} ==
