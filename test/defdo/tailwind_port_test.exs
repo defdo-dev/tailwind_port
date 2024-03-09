@@ -1,4 +1,5 @@
 defmodule Defdo.TailwindPortTest do
+  @moduledoc false
   use ExUnit.Case
   alias Defdo.TailwindPort
 

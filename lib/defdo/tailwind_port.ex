@@ -1,32 +1,36 @@
 defmodule Defdo.TailwindPort do
-  @doc """
-  Commands:
-   init [options]
+  @moduledoc """
+  Module for interacting with the Tailwind CSS CLI.
 
-  Options:
-    -i, --input              Input file
-    -o, --output             Output file
-    -w, --watch              Watch for changes and rebuild as needed
-    -p, --poll               Use polling instead of filesystem events when watching
-        --content            Content paths to use for removing unused classes
-        --postcss            Load custom PostCSS configuration
-    -m, --minify             Minify the output
-    -c, --config             Path to a custom config file
-        --no-autoprefixer    Disable autoprefixer
-    -h, --help               Display usage information
+  The `Defdo.TailwindPort` module provides an interface to interact
+  with an Elixir port, enabling communication with the Tailwind CSS CLI. This
+  allows the integration of Tailwind CSS build processes into Elixir applications.
 
-  Usage
+  ## Usage
 
-      iex> {:ok, pid} = Defdo.TailwindPort.start_link [opts: ["--watch", "--content", "#{File.cwd!()}/priv/static/html/**/*.{html,js}", "-c", "#{File.cwd!()}/assets/tailwind.config.js"]]
+  To use this module, start the it using `start_link/1`:
+
+      iex> {:ok, pid} = Defdo.TailwindPort.start_link [opts: ["-i", "./assets/css/app.css", "--content", "./priv/static/html/**/*.{html,js}", "-c", "./assets/tailwind.config.js", "--watch"]]
+
+  #### Options:
+    * `name` - Give a name for the process.
+    * `cmd` - Specify if you want use a specific tailwind CLI binary, default to downloadable binary.
+    * `opts` - Options for CLI interface, see below `CLI options`.
+
+
+  #### CLI Options
+    * `-i`, `--input`              Input file
+    * `-o`, `--output`             Output file
+    * `-w`, `--watch `             Watch for changes and rebuild as needed
+    * `-p`, `--poll`               Use polling instead of filesystem events when watching
+    * `--content`            Content paths to use for removing unused classes
+    * `--postcss`            Load custom PostCSS configuration
+    * `-m`, `--minify`             Minify the output
+    * `-c`, `--config`             Path to a custom config file
+    * `--no-autoprefixer`    Disable autoprefixer
+    * `-h`, `--help`               Display usage information
+
   """
-  # content: "../src/**/*.{html,js}"
-  # config: "./assets/tailwind.config.js"
-  # Download file and put into bin directory ignore it by .gitignore
-  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-linux-arm64
-  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-linux-x64
-  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-macos-arm64
-  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-macos-x64
-  # https://storage.defdo.de/tailwind_cli_daisyui/tailwindcss-windows-x64.exe
   use GenServer, restart: :transient
   require Logger
 
