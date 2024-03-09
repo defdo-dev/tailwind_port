@@ -18,7 +18,8 @@ defmodule TailwindPort.MixProject do
       package: package(),
       # exdocs
       name: "Tailwind Port",
-      description: "A port for the Tailwind Command Line Interface, primarily aimed at custom binaries and facilitating integration with the Elixir ecosystem.",
+      description:
+        "A port for the Tailwind Command Line Interface, primarily aimed at custom binaries and facilitating integration with the Elixir ecosystem.",
       source_url: "https://github.com/defdo-dev/tailwind_cli_port",
       homepage_url: "https://foss.defdo.ninja",
       docs: [
@@ -42,7 +43,14 @@ defmodule TailwindPort.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, runtime_tools: :optional, inets: :optional, ssl: :optional, observer: :optional, wx: :optional],
+      extra_applications: [
+        :logger,
+        runtime_tools: :optional,
+        inets: :optional,
+        ssl: :optional,
+        observer: :optional,
+        wx: :optional
+      ],
       mod: {TailwindPort.Application, []}
     ]
   end

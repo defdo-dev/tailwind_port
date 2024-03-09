@@ -68,6 +68,7 @@ defmodule Defdo.TailwindPort do
         "Keyword `opts` must contain the arguments required by tailwind_port to work as you expect, but it is not provided."
       )
     end
+
     # sometime we should download the tailwind binary in that case we will increase the timeout.
     timeout = if Keyword.has_key?(args, :cmd), do: 5000, else: 60000
     GenServer.call(name, {:new, args}, timeout)
@@ -128,7 +129,6 @@ defmodule Defdo.TailwindPort do
     project_path = :code.priv_dir(:tailwind_port)
     Path.join([project_path, "bin"])
   end
-
 
   @doc """
   Initialize a directory structure into the filesystem
