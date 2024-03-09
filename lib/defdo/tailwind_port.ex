@@ -15,7 +15,9 @@ defmodule Defdo.TailwindPort do
         --no-autoprefixer    Disable autoprefixer
     -h, --help               Display usage information
 
-  {:ok, state} = Defdo.TailwindPort.init [opts: ["--watch", "--content", "#{File.cwd!()}/priv/static/html/**/*.{html,js}", "-c", "#{File.cwd!()}/assets/tailwind.config.js"]]
+  Usage
+
+      iex> {:ok, pid} = Defdo.TailwindPort.start_link [opts: ["--watch", "--content", "#{File.cwd!()}/priv/static/html/**/*.{html,js}", "-c", "#{File.cwd!()}/assets/tailwind.config.js"]]
   """
   # content: "../src/**/*.{html,js}"
   # config: "./assets/tailwind.config.js"
