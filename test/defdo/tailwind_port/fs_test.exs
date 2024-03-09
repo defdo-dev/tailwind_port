@@ -56,7 +56,8 @@ defmodule Defdo.TailwindPort.FSTest do
 
   @tag :fs
   test "initialize a path from FS struct" do
-    assert fs = %FS{} = FS.new([path: "/tmp/defdo_tw"])
+    dirname = FS.random_dir_name()
+    assert fs = %FS{} = FS.new([path: "/tmp/#{dirname}"])
     refute fs.path_exists
 
     assert updated_fs = FS.init_path(fs)

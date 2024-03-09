@@ -35,7 +35,7 @@ defmodule Defdo.TailwindPort do
 
   # GenServer API
   def start_link(args \\ []) do
-    {name, args} = get_from_args(args, :name, __MODULE__)
+    {name, args} = Keyword.pop(args, :name, __MODULE__)
 
     GenServer.start_link(__MODULE__, args, name: name)
   end
@@ -44,13 +44,13 @@ defmodule Defdo.TailwindPort do
 
   def init([]) do
     Process.flag(:trap_exit, true)
-    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()}}
+    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: FS.random_fs()}}
   end
 
   def init(args) do
     Process.flag(:trap_exit, true)
 
-    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()},
+    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: FS.random_fs()},
      {:continue, {:new, args}}}
   end
 
@@ -129,21 +129,6 @@ defmodule Defdo.TailwindPort do
     Path.join([project_path, "bin"])
   end
 
-  @doc """
-  Obtain a random temporal directory structure
-  """
-  def random_fs do
-    path = [System.tmp_dir(), random_dir_name()] |> Enum.reject(&is_nil/1) |> Path.join()
-
-    FS.new(path: path)
-  end
-
-  @doc """
-  Obtain a random name to use as dynamic directory.
-  """
-  def random_dir_name(len \\ 10) do
-    :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
-  end
 
   @doc """
   Initialize a directory structure into the filesystem
@@ -201,6 +186,10 @@ defmodule Defdo.TailwindPort do
     end
 
     {:shutdown, reason}
+  end
+
+  def handle_continue({:new, [opts: []]}, state) do
+    {:noreply, state}
   end
 
   def handle_continue({:new, args}, state) do
@@ -289,14 +278,6 @@ defmodule Defdo.TailwindPort do
   defp warn_if_orphaned(port_info) do
     if os_pid = port_info[:os_pid] do
       Logger.warning("Orphaned OS process: #{os_pid}")
-    end
-  end
-
-  defp get_from_args(list, key, default) when is_list(list) do
-    if element = list[key] do
-      {element, list}
-    else
-      {default, list}
     end
   end
 

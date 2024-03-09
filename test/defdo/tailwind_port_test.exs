@@ -19,6 +19,17 @@ defmodule Defdo.TailwindPortTest do
   end
 
   @tag :capture_log
+  test "don't start port if empty opts" do
+    name = :tw
+
+    assert {:ok, _pid} = TailwindPort.start_link(opts: [], name: name)
+
+    assert %{port: port} = TailwindPort.state(name)
+
+    assert is_nil(Port.info(port))
+  end
+
+  @tag :capture_log
   test "check if output is created" do
     content = "./priv/static/html/*.html"
     input = "./assets/css/app.css"
@@ -30,7 +41,7 @@ defmodule Defdo.TailwindPortTest do
              TailwindPort.start_link(opts: opts)
 
     # We must improve time relaying on some startup monitor for waiting to the execution of the tailwind-cli.
-    Process.sleep(2000)
+    Process.sleep(3000)
 
     assert %{port: port, latest_output: output} = TailwindPort.state()
 

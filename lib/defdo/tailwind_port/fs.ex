@@ -53,16 +53,34 @@ defmodule Defdo.TailwindPort.FS do
     work_files = update_work_files(work_file, opts)
 
     path_exists = check_if_path_exists?(opts, path)
+
     updated_opts =
       opts
       |> Keyword.put(:work_files, work_files)
       |> Keyword.put(:path_exists, path_exists)
+
     struct(struct, updated_opts)
   end
 
   def init_path(%__MODULE__{path: path} = fs) do
     File.mkdir_p(path)
     update(fs, [])
+  end
+
+  @doc """
+  Obtain a random temporal directory structure
+  """
+  def random_fs do
+    path = [System.tmp_dir(), random_dir_name()] |> Enum.reject(&is_nil/1) |> Path.join()
+
+    new(path: path)
+  end
+
+  @doc """
+  Obtain a random name to use as dynamic directory.
+  """
+  def random_dir_name(len \\ 10) do
+    :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
   end
 
   defp get_work_files(opts, default \\ []) do
@@ -82,7 +100,6 @@ defmodule Defdo.TailwindPort.FS do
     |> Keyword.get(:path, default)
     |> cast_existing_path()
   end
-
 
   defp cast_existing_path(nil), do: false
   defp cast_existing_path(path), do: File.exists?(path)
