@@ -30,7 +30,7 @@ defmodule Defdo.TailwindPort do
   use GenServer, restart: :transient
   require Logger
 
-  alias Defdo.TailwindCustomDownload
+  alias Defdo.TailwindDownload
   alias Defdo.TailwindPort.FS
 
   # GenServer API
@@ -80,7 +80,7 @@ defmodule Defdo.TailwindPort do
 
     unless File.dir?(bin_path) && File.exists?(cmd) do
       Logger.debug("The `cmd` doesn't have a valid tailwind binary, we proceed to download")
-      TailwindCustomDownload.download(cmd)
+      TailwindDownload.download(cmd)
     end
 
     opts = Keyword.get(args, :opts, [])
@@ -197,7 +197,7 @@ defmodule Defdo.TailwindPort do
       |> Port.info()
       |> warn_if_orphaned()
     else
-      Logger.debug("Port: #{inspect(port)} does'n exist.")
+      Logger.debug("Port: #{inspect(port)} doesn't exist.")
     end
 
     {:shutdown, reason}

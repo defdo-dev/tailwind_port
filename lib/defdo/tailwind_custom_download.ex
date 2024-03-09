@@ -1,19 +1,45 @@
-defmodule Defdo.TailwindCustomDownload do
+defmodule Defdo.TailwindDownload do
+  @moduledoc """
+  Download a tailwind binary.
+
+  You can configure the specific version or the url to download the binary.
+
+  To configure a version add to your `config.exs` file the following config.
+
+      config :tailwind_port, version: "3.4.1"
+
+  To configure a distinct url for example a standard binary you should update the config url.
+
+      config :tailwind_port, url: "https://github.com/tailwindlabs/tailwindcss/releases/download/v$version/tailwindcss-$target"
+
+  > #### Placeholders in URL {: .info}
+  > Notice that `$version` and `$target` are placeholders which will be replace at runtime.
+  > This is helpful to keep dynamical the version and platform for downloadable binaries.
+  """
   require Logger
   @latest_version "3.4.1"
-  @doc false
+
   # Latest known version at the time of publishing.
   defp latest_version, do: @latest_version
 
-  defp binary_url(version, name) do
+  @doc """
+  The default URL to install Tailwind from.
+  """
+  def default_base_url do
     Application.get_env(
       :tailwind_port,
       :url,
-      "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
+      "https://storage.defdo.de/tailwind_cli_daisyui/v$version/tailwindcss-$target"
     )
   end
 
-  def bin_path do
+  defp get_url(base_url) do
+    base_url
+    |> String.replace("$version", configured_version())
+    |> String.replace("$target", target())
+  end
+
+  defp bin_path do
     name = "tailwindcss"
 
     Application.get_env(:tailwind_port, :path) ||
@@ -41,10 +67,8 @@ defmodule Defdo.TailwindCustomDownload do
   @doc """
   Downloads a custom tailwind binary by default.
   """
-  def download(path \\ bin_path()) do
-    version = configured_version()
-    name = "tailwindcss-#{target()}"
-    url = binary_url(version, name)
+  def download(path \\ bin_path(), base_url \\ default_base_url()) do
+    url = get_url(base_url)
 
     binary = fetch_body!(url)
     File.mkdir_p!(Path.dirname(path))
@@ -52,17 +76,13 @@ defmodule Defdo.TailwindCustomDownload do
     File.chmod(path, 0o755)
   end
 
-  # Defdo.TailwindCustomDownload.install()
-  def install do
-    version = configured_version()
-    name = "tailwindcss-#{target()}"
-    url = binary_url(version, name)
-    bin_path = bin_path()
+  # Defdo.TailwindDownload.install()
+  def install(path \\ bin_path(), base_url \\ default_base_url()) do
+    unless File.exists?(path) do
+      download(path, base_url)
+    end
+
     tailwind_config_path = Path.expand("assets/tailwind.config.js")
-    binary = fetch_body!(url)
-    File.mkdir_p!(Path.dirname(bin_path))
-    File.write!(bin_path, binary, [:binary])
-    File.chmod(bin_path, 0o755)
 
     File.mkdir_p!("assets/css")
 
