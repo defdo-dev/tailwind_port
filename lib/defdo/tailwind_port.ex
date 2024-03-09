@@ -29,6 +29,7 @@ defmodule Defdo.TailwindPort do
   require Logger
 
   alias Defdo.TailwindCustomDownload
+  alias Defdo.TailwindPort.FS
 
   # GenServer API
   def start_link(args \\ []) do
@@ -46,15 +47,28 @@ defmodule Defdo.TailwindPort do
 
   def init(args) do
     Process.flag(:trap_exit, true)
-    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()}, {:continue, {:new, args}}}
+
+    {:ok, %{port: nil, latest_output: nil, exit_status: nil, fs: random_fs()},
+     {:continue, {:new, args}}}
   end
 
+  @doc """
+  Creates a new `TailwindPort`.
+
+  Options:
+
+    * `cmd` - Should contain the binary to run, default to downloadable binary.
+    * `opts` - Are passed directly to the binary, see details at module options.
+  """
   def new(name \\ __MODULE__, args) do
     unless Keyword.has_key?(args, :opts) do
-      Logger.warning("Keyword `opts` must contain the arguments required by tailwind_port to work as you expect, but it is not provided.")
+      Logger.warning(
+        "Keyword `opts` must contain the arguments required by tailwind_port to work as you expect, but it is not provided."
+      )
     end
-
-    GenServer.call(name, {:new, args})
+    # sometime we should download the tailwind binary in that case we will increase the timeout.
+    timeout = if Keyword.has_key?(args, :cmd), do: 5000, else: 60000
+    GenServer.call(name, {:new, args}, timeout)
   end
 
   def new_port(args) do
@@ -63,6 +77,7 @@ defmodule Defdo.TailwindPort do
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
 
     unless File.dir?(bin_path) && File.exists?(cmd) do
+      Logger.debug("The `cmd` doesn't have a valid tailwind binary, we proceed to download")
       TailwindCustomDownload.download(cmd)
     end
 
@@ -152,16 +167,13 @@ defmodule Defdo.TailwindPort do
   Obtain a random temporal directory structure
   """
   def random_fs do
-    base_path = System.tmp_dir()
-    random_dir = :crypto.strong_rand_bytes(10) |> Base.encode64(padding: false)
-    path = [base_path, random_dir] |> Enum.reject(&is_nil/1) |> Path.join()
+    path = [System.tmp_dir(), random_name()] |> Enum.reject(&is_nil/1) |> Path.join()
 
-    %{
-      base_path: base_path,
-      dir: random_dir,
-      path: path,
-      path_exists: File.exists?(path)
-    }
+    FS.new(path: path)
+  end
+
+  def random_name(len \\ 10) do
+    :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
   end
 
   @doc """
@@ -169,6 +181,14 @@ defmodule Defdo.TailwindPort do
   """
   def init_fs(name \\ __MODULE__) do
     GenServer.call(name, :init_fs)
+  end
+
+  def update_fs(name \\ __MODULE__, opts) do
+    GenServer.call(name, {:update_fs, opts})
+  end
+
+  def update_and_init_fs(name \\ __MODULE__, opts) do
+    GenServer.call(name, {:update_and_init_fs, opts})
   end
 
   def handle_continue({:new, args}, state) do
@@ -180,13 +200,22 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_call(:init_fs, _from, state) do
-    fs = state.fs
-    new_fs = if :ok == File.mkdir_p(fs.path) do
-      %{fs | path_exists: File.exists?(fs.path)}
-    else
-      fs
-    end
+    new_fs = FS.init_path(state.fs)
     new_state = %{state | fs: new_fs}
+
+    {:reply, new_state.fs, new_state}
+  end
+
+  def handle_call({:update_fs, opts}, _from, state) do
+    updated_fs = FS.update(state.fs, opts)
+    new_state = %{state | fs: updated_fs}
+
+    {:reply, new_state.fs, new_state}
+  end
+
+  def handle_call({:update_and_init_fs, opts}, _from, state) do
+    updated_fs = FS.update(state.fs, opts)
+    new_state = %{state | fs: FS.init_path(updated_fs)}
 
     {:reply, new_state.fs, new_state}
   end

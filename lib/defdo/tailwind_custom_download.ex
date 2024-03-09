@@ -19,6 +19,13 @@ defmodule Defdo.TailwindCustomDownload do
 
   @doc """
   Returns the configured tailwind version.
+
+  if you want a specific version, you must configure the version in your `config.exs` file.
+
+  Example:
+
+      config :tailwind_port, version: "3.4.1"
+
   """
   def configured_version do
     Application.get_env(:tailwind_port, :version, latest_version())
@@ -120,18 +127,19 @@ defmodule Defdo.TailwindCustomDownload do
     # https://erlef.github.io/security-wg/secure_coding_and_deployment_hardening/inets
     cacertfile = cacertfile() |> String.to_charlist()
 
-    http_options = [
-      ssl: [
-        verify: :verify_peer,
-        cacertfile: cacertfile,
-        depth: 2,
-        customize_hostname_check: [
-          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-        ],
-        versions: protocol_versions()
+    http_options =
+      [
+        ssl: [
+          verify: :verify_peer,
+          cacertfile: cacertfile,
+          depth: 2,
+          customize_hostname_check: [
+            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+          ],
+          versions: protocol_versions()
+        ]
       ]
-    ]
-    |> maybe_add_proxy_auth(scheme)
+      |> maybe_add_proxy_auth(scheme)
 
     options = [body_format: :binary]
 
