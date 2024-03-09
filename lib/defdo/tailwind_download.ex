@@ -2,19 +2,19 @@ defmodule Defdo.TailwindDownload do
   @moduledoc """
   Download a tailwind binary.
 
-  You can configure the specific version or the url to download the binary.
+  You can configure the specific version or the URL to download the binary.
 
-  To configure a version add to your `config.exs` file the following config.
+  To configure a specific version, edit your `config.exs` file with the following config.
 
       config :tailwind_port, version: "3.4.1"
 
-  To configure a distinct url for example a standard binary you should update the config url.
+  To configure a distinct URL, you should update the config URL.
 
       config :tailwind_port, url: "https://github.com/tailwindlabs/tailwindcss/releases/download/v$version/tailwindcss-$target"
 
   > #### Placeholders in URL {: .info}
-  > Notice that `$version` and `$target` are placeholders which will be replace at runtime.
-  > This is helpful to keep dynamical the version and platform for downloadable binaries.
+  > Please note that `$version` and `$target` are placeholder values that will be replaced at runtime.
+  > It is helpful to dynamically replace the version and platform for downloadable binaries.
   """
   require Logger
   @latest_version "3.4.1"

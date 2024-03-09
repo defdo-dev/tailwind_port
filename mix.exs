@@ -17,7 +17,8 @@ defmodule TailwindPort.MixProject do
       description: "A port to use the tailwind cli with elixir.",
       package: package(),
       # exdocs
-      name: "Defdo.Vault",
+      name: "Tailwind Port",
+      description: "A port for the Tailwind Command Line Interface, primarily aimed at custom binaries and facilitating integration with the Elixir ecosystem.",
       source_url: "https://github.com/defdo-dev/tailwind_cli_port",
       homepage_url: "https://foss.defdo.ninja",
       docs: [
