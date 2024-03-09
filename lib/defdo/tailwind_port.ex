@@ -50,7 +50,7 @@ defmodule Defdo.TailwindPort do
   end
 
   def new(name \\ __MODULE__, args) do
-    GenServer.call(name, {:new, args})
+    GenServer.call(name, {:new, [opts: args]})
   end
 
   def new_port(args) do
@@ -184,7 +184,7 @@ defmodule Defdo.TailwindPort do
     end
     new_state = %{state | fs: new_fs}
 
-    {:reply, fs, new_state}
+    {:reply, new_state.fs, new_state}
   end
 
   def handle_call({:new, args}, _from, state) do
