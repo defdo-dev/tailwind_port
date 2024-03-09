@@ -71,8 +71,8 @@ defmodule Defdo.TailwindPort do
     GenServer.call(name, {:new, args}, timeout)
   end
 
-  def new_port(args) do
-    {bin_path, _assets_path, _static_path} = project_paths()
+  defp new_port(args) do
+    bin_path = bin_path()
 
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
 
@@ -121,18 +121,61 @@ defmodule Defdo.TailwindPort do
     port
   end
 
+  # bin path for local test
+  defp bin_path do
+    project_path = :code.priv_dir(:tailwind_port)
+    Path.join([project_path, "bin"])
+  end
+
+  @doc """
+  Obtain a random temporal directory structure
+  """
+  def random_fs do
+    path = [System.tmp_dir(), random_dir_name()] |> Enum.reject(&is_nil/1) |> Path.join()
+
+    FS.new(path: path)
+  end
+
+  @doc """
+  Obtain a random name to use as dynamic directory.
+  """
+  def random_dir_name(len \\ 10) do
+    :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
+  end
+
+  @doc """
+  Initialize a directory structure into the filesystem
+  """
+  def init_fs(name \\ __MODULE__) do
+    GenServer.call(name, :init_fs)
+  end
+
+  @doc """
+  Updates the FS struct into the state
+  """
+  def update_fs(name \\ __MODULE__, opts) do
+    GenServer.call(name, {:update_fs, opts})
+  end
+
+  @doc """
+  Similar to `update_fs/2` but automatically initialize the filesystem directory.
+  """
+  def update_and_init_fs(name \\ __MODULE__, opts) do
+    GenServer.call(name, {:update_and_init_fs, opts})
+  end
+
+  @doc """
+  Get the current state for the running process.
+  """
   def state(name \\ __MODULE__) do
     GenServer.call(name, :get_state)
   end
 
-  # returns project paths
-  def project_paths do
-    project_path = :code.priv_dir(:tailwind_port)
-    bin_path = Path.join([project_path, "bin"])
-    assets_path = Path.join([project_path, "../", "assets"])
-    static_path = Path.join([project_path, "static"])
-
-    {bin_path, assets_path, static_path}
+  @doc """
+  Complete the execution for running process.
+  """
+  def terminate(name \\ __MODULE__) do
+    GenServer.stop(name)
   end
 
   ####
@@ -156,39 +199,6 @@ defmodule Defdo.TailwindPort do
     end
 
     {:shutdown, reason}
-  end
-
-  # Complete execution via GenServer
-  def terminate(name \\ __MODULE__) do
-    GenServer.stop(name)
-  end
-
-  @doc """
-  Obtain a random temporal directory structure
-  """
-  def random_fs do
-    path = [System.tmp_dir(), random_name()] |> Enum.reject(&is_nil/1) |> Path.join()
-
-    FS.new(path: path)
-  end
-
-  def random_name(len \\ 10) do
-    :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
-  end
-
-  @doc """
-  Initialize a directory structure
-  """
-  def init_fs(name \\ __MODULE__) do
-    GenServer.call(name, :init_fs)
-  end
-
-  def update_fs(name \\ __MODULE__, opts) do
-    GenServer.call(name, {:update_fs, opts})
-  end
-
-  def update_and_init_fs(name \\ __MODULE__, opts) do
-    GenServer.call(name, {:update_and_init_fs, opts})
   end
 
   def handle_continue({:new, args}, state) do

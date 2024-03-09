@@ -1,10 +1,17 @@
 defmodule Defdo.TailwindCustomDownload do
   require Logger
   @latest_version "3.4.1"
-
   @doc false
   # Latest known version at the time of publishing.
-  def latest_version, do: @latest_version
+  defp latest_version, do: @latest_version
+
+  defp binary_url(version, name) do
+    Application.get_env(
+      :tailwind_port,
+      :url,
+      "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
+    )
+  end
 
   def bin_path do
     name = "tailwindcss"
@@ -31,10 +38,13 @@ defmodule Defdo.TailwindCustomDownload do
     Application.get_env(:tailwind_port, :version, latest_version())
   end
 
-  def download(path) do
+  @doc """
+  Downloads a custom tailwind binary by default.
+  """
+  def download(path \\ bin_path()) do
     version = configured_version()
     name = "tailwindcss-#{target()}"
-    url = "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
+    url = binary_url(version, name)
 
     binary = fetch_body!(url)
     File.mkdir_p!(Path.dirname(path))
@@ -46,7 +56,7 @@ defmodule Defdo.TailwindCustomDownload do
   def install do
     version = configured_version()
     name = "tailwindcss-#{target()}"
-    url = "https://storage.defdo.de/tailwind_cli_daisyui/v#{version}/#{name}"
+    url = binary_url(version, name)
     bin_path = bin_path()
     tailwind_config_path = Path.expand("assets/tailwind.config.js")
     binary = fetch_body!(url)
