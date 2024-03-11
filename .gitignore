@@ -23,6 +23,7 @@ erl_crash.dump
 tailwind_port-*.tar
 
 .DS_Store
+.vscode
 
 # Temporary files, for example, from tests.
 /tmp/
