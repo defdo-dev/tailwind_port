@@ -1,4 +1,4 @@
-defmodule Defdo.TailwindPort.WorkFiles do
+defmodule Defdo.TailwindPort.WorkingFiles do
   @moduledoc false
   @type path :: String.t()
   @type t :: %__MODULE__{
@@ -15,8 +15,8 @@ defmodule Defdo.TailwindPort.WorkFiles do
     Example:
 
       iex> opts = [input_css_path: "/tmp/app.css", tailwind_config_path: "/tmp/tailwind.config.js", content_path: "/tmp/index.html"]
-      iex> Defdo.TailwindPort.WorkFiles.new(opts)
-      iex> %Defdo.TailwindPort.WorkFiles{
+      iex> Defdo.TailwindPort.WorkingFiles.new(opts)
+      iex> %Defdo.TailwindPort.WorkingFiles{
             input_css_path: "/tmp/app.css",
             tailwind_config_path: "/tmp/tailwind.config.js",
             content_path: "/tmp/index.html"

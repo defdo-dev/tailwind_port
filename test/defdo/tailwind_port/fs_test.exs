@@ -3,7 +3,7 @@ defmodule Defdo.TailwindPort.FSTest do
   use ExUnit.Case, async: true
 
   alias Defdo.TailwindPort.FS
-  alias Defdo.TailwindPort.WorkFiles
+  alias Defdo.TailwindPort.WorkingFiles
 
   @valid_opts [
     path: "/tmp",
@@ -27,7 +27,7 @@ defmodule Defdo.TailwindPort.FSTest do
     assert %FS{
              path: "/tmp",
              path_exists: true,
-             working_files: %Defdo.TailwindPort.WorkFiles{
+             working_files: %Defdo.TailwindPort.WorkingFiles{
                input_css_path: "/tmp/app.css",
                tailwind_config_path: "/tmp/tailwind.config.js",
                content_path: "/tmp/index.html"
@@ -38,13 +38,13 @@ defmodule Defdo.TailwindPort.FSTest do
   @tag :fs
   test "updates an existing FS struct" do
     assert updated_wf =
-             %WorkFiles{} =
+             %WorkingFiles{} =
              [
                input_css_path: "/tmp/defdo/app.css",
                tailwind_config_path: "/tmp/defdo/tailwind.config.js",
                content_path: "/tmp/index.html"
              ]
-             |> WorkFiles.new()
+             |> WorkingFiles.new()
 
     assert fs = %FS{} = FS.new(@valid_opts)
     assert updated_fs = FS.update(fs, @updated_opts)

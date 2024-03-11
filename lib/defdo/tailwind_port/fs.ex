@@ -1,16 +1,16 @@
 defmodule Defdo.TailwindPort.FS do
   @moduledoc false
-  alias Defdo.TailwindPort.WorkFiles
+  alias Defdo.TailwindPort.WorkingFiles
 
   @type t :: %__MODULE__{
-          path: WorkFiles.path(),
+          path: WorkingFiles.path(),
           path_exists: boolean(),
-          working_files: WorkFiles.t()
+          working_files: WorkingFiles.t()
         }
 
   defstruct path: nil,
             path_exists: false,
-            working_files: %WorkFiles{}
+            working_files: %WorkingFiles{}
 
   @doc """
   Creates a new `FS` (FileSystem) struct, in order to keep related working paths.
@@ -29,7 +29,7 @@ defmodule Defdo.TailwindPort.FS do
       iex> %Defdo.TailwindPort.FS{
         path: "/tmp",
         path_exists: true,
-        working_files: %Defdo.TailwindPort.WorkFiles{
+        working_files: %Defdo.TailwindPort.WorkingFiles{
           input_css_path: "/tmp/app.css",
           tailwind_config_path: "/tmp/tailwind.config.js",
           content_path: "/tmp/index.html"
@@ -49,7 +49,7 @@ defmodule Defdo.TailwindPort.FS do
     struct(__MODULE__, new_opts)
   end
 
-  def update(%__MODULE__{path: path, working_files: %WorkFiles{} = work_file} = struct, opts) do
+  def update(%__MODULE__{path: path, working_files: %WorkingFiles{} = work_file} = struct, opts) do
     working_files = update_working_files(work_file, opts)
 
     path_exists = check_if_path_exists?(opts, path)
@@ -86,13 +86,13 @@ defmodule Defdo.TailwindPort.FS do
   defp get_working_files(opts, default \\ []) do
     working_files_opts = Keyword.get(opts, :working_files, default)
 
-    WorkFiles.new(working_files_opts)
+    WorkingFiles.new(working_files_opts)
   end
 
   defp update_working_files(struct, opts) do
     work_file_opts = Keyword.get(opts, :working_files, [])
 
-    WorkFiles.update(struct, work_file_opts)
+    WorkingFiles.update(struct, work_file_opts)
   end
 
   defp check_if_path_exists?(opts, default \\ nil) do
