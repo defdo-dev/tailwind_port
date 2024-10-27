@@ -7,7 +7,7 @@ defmodule TailwindPort.MixProject do
   def project do
     [
       app: :tailwind_port,
-      version: "0.1.4",
+      version: "0.1.5",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -58,7 +58,7 @@ defmodule TailwindPort.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:telemetry, "~> 1.2.1"},
+      {:telemetry, "~> 1.2"},
       {:castore, ">= 0.0.0"},
       {:ex_doc, ">= 0.0.0", only: [:dev, :docs]}
     ]
