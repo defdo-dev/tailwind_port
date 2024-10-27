@@ -18,7 +18,8 @@ defmodule Defdo.TailwindPort.FSTest do
     path: "/tmp/defdo",
     working_files: [
       input_css_path: "/tmp/defdo/app.css",
-      tailwind_config_path: "/tmp/defdo/tailwind.config.js"
+      tailwind_config_path: "/tmp/defdo/tailwind.config.js",
+      output_css_path: "/tmp/output.css"
     ]
   ]
 
@@ -42,7 +43,8 @@ defmodule Defdo.TailwindPort.FSTest do
              [
                input_css_path: "/tmp/defdo/app.css",
                tailwind_config_path: "/tmp/defdo/tailwind.config.js",
-               content_path: "/tmp/index.html"
+               content_path: "/tmp/index.html",
+               output_css_path: "/tmp/output.css"
              ]
              |> WorkingFiles.new()
 

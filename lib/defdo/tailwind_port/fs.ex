@@ -22,7 +22,8 @@ defmodule Defdo.TailwindPort.FS do
         working_files: [
           input_css_path: "/tmp/app.css",
           tailwind_config_path: "/tmp/tailwind.config.js",
-          content_path: "/tmp/index.html"
+          content_path: "/tmp/index.html",
+          output_css_path: "/tmp/output.css"
         ]
       ]
       iex> Defdo.TailwindPort.FS.new(opts)
@@ -32,7 +33,8 @@ defmodule Defdo.TailwindPort.FS do
         working_files: %Defdo.TailwindPort.WorkingFiles{
           input_css_path: "/tmp/app.css",
           tailwind_config_path: "/tmp/tailwind.config.js",
-          content_path: "/tmp/index.html"
+          content_path: "/tmp/index.html",
+          output_css_path: "/tmp/output.css"
         }
       }
   """

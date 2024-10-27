@@ -4,22 +4,24 @@ defmodule Defdo.TailwindPort.WorkingFiles do
   @type t :: %__MODULE__{
           input_css_path: path(),
           tailwind_config_path: path(),
-          content_path: path()
+          content_path: path(),
+          output_css_path: path()
         }
 
-  defstruct [:input_css_path, :tailwind_config_path, :content_path]
+  defstruct [:input_css_path, :tailwind_config_path, :content_path, :output_css_path]
 
   @doc """
   Creates a new `WorkingFiles` struct, in order to keep related filenames.
 
     Example:
 
-      iex> opts = [input_css_path: "/tmp/app.css", tailwind_config_path: "/tmp/tailwind.config.js", content_path: "/tmp/index.html"]
+      iex> opts = [input_css_path: "/tmp/app.css", tailwind_config_path: "/tmp/tailwind.config.js", content_path: "/tmp/index.html", output_css_path: "/tmp/output.css"]
       iex> Defdo.TailwindPort.WorkingFiles.new(opts)
       iex> %Defdo.TailwindPort.WorkingFiles{
             input_css_path: "/tmp/app.css",
             tailwind_config_path: "/tmp/tailwind.config.js",
-            content_path: "/tmp/index.html"
+            content_path: "/tmp/index.html",
+            output_css_path: "/tmp/output.css"
           }
   """
   @spec new(opts :: keyword()) :: t()
