@@ -47,9 +47,7 @@ defmodule TailwindPort.MixProject do
         :logger,
         runtime_tools: :optional,
         inets: :optional,
-        ssl: :optional,
-        observer: :optional,
-        wx: :optional
+        ssl: :optional
       ],
       mod: {TailwindPort.Application, []}
     ]
