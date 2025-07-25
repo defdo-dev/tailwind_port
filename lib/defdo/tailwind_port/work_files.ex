@@ -1,5 +1,10 @@
 defmodule Defdo.TailwindPort.WorkingFiles do
-  @moduledoc false
+  @moduledoc """
+  Working files structure for TailwindPort.
+  
+  This module defines the structure for tracking various file paths
+  used during Tailwind CSS processing.
+  """
   @type path :: String.t()
   @type t :: %__MODULE__{
           input_css_path: path(),
@@ -29,6 +34,7 @@ defmodule Defdo.TailwindPort.WorkingFiles do
     struct(__MODULE__, opts)
   end
 
+  @spec update(t(), keyword()) :: t()
   def update(%__MODULE__{} = wf, opts) do
     struct(wf, opts)
   end

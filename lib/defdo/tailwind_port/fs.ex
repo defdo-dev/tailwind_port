@@ -1,5 +1,10 @@
 defmodule Defdo.TailwindPort.FS do
-  @moduledoc false
+  @moduledoc """
+  Filesystem utilities for TailwindPort.
+  
+  This module provides functionality for managing temporary directories
+  and working files used by TailwindPort processes.
+  """
   alias Defdo.TailwindPort.WorkingFiles
 
   @type t :: %__MODULE__{
@@ -51,6 +56,7 @@ defmodule Defdo.TailwindPort.FS do
     struct(__MODULE__, new_opts)
   end
 
+  @spec update(t(), keyword()) :: t()
   def update(%__MODULE__{path: path, working_files: %WorkingFiles{} = work_file} = struct, opts) do
     working_files = update_working_files(work_file, opts)
 
@@ -64,6 +70,7 @@ defmodule Defdo.TailwindPort.FS do
     struct(struct, updated_opts)
   end
 
+  @spec init_path(t()) :: t()
   def init_path(%__MODULE__{path: path} = fs) do
     File.mkdir_p(path)
     update(fs, [])
@@ -72,6 +79,7 @@ defmodule Defdo.TailwindPort.FS do
   @doc """
   Obtain a random temporal directory structure
   """
+  @spec random_fs() :: t()
   def random_fs do
     path = [System.tmp_dir(), random_dir_name()] |> Enum.reject(&is_nil/1) |> Path.join()
 
@@ -81,6 +89,7 @@ defmodule Defdo.TailwindPort.FS do
   @doc """
   Obtain a random name to use as dynamic directory.
   """
+  @spec random_dir_name(pos_integer()) :: String.t()
   def random_dir_name(len \\ 10) do
     :crypto.strong_rand_bytes(len) |> Base.encode64(padding: false)
   end
