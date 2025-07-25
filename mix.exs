@@ -11,10 +11,18 @@ defmodule TailwindPort.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
+      ],
       xref: [
         exclude: [:httpc, :public_key]
       ],
-      description: "A robust, production-ready Elixir library for integrating Tailwind CSS CLI with comprehensive error handling, health monitoring, and synchronization features.",
+      description:
+        "A robust, production-ready Elixir library for integrating Tailwind CSS CLI with comprehensive error handling, health monitoring, and synchronization features.",
       package: package(),
       # exdocs
       name: "Tailwind Port",
@@ -34,13 +42,14 @@ defmodule TailwindPort.MixProject do
           "guides/EXAMPLES.md",
           "guides/API_REFERENCE.md",
           "guides/MIGRATION_GUIDE.md",
+          "guides/PERFORMANCE.md",
           "CHANGELOG.md",
           "CLAUDE.md"
         ],
         groups_for_extras: [
           "Getting Started": ["README.md", "guides/QUICK_START.md"],
-          "Guides": ["guides/DEVELOPER_GUIDE.md", "guides/USAGE.md", "guides/EXAMPLES.md"],
-          "Reference": ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
+          Guides: ["guides/DEVELOPER_GUIDE.md", "guides/USAGE.md", "guides/EXAMPLES.md", "guides/PERFORMANCE.md"],
+          Reference: ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
           "Project Info": ["CHANGELOG.md", "CLAUDE.md"]
         ]
       ]
@@ -58,10 +67,11 @@ defmodule TailwindPort.MixProject do
       },
       maintainers: ["Defdo Team"],
       files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE CLAUDE.md guides),
-      exclude_patterns: ["priv/bin/tailwindcss"],  # Exclude the binary - will be downloaded
+      # Exclude the binary - will be downloaded
+      exclude_patterns: ["priv/bin/tailwindcss"],
       keywords: [
         "tailwind",
-        "tailwindcss", 
+        "tailwindcss",
         "css",
         "frontend",
         "build-tools",
@@ -92,7 +102,11 @@ defmodule TailwindPort.MixProject do
     [
       {:telemetry, "~> 1.2"},
       {:castore, ">= 0.0.0"},
-      {:ex_doc, ">= 0.0.0", only: [:dev, :docs]}
+      {:ex_doc, ">= 0.0.0", only: [:dev, :docs]},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test},
+      {:mock, "~> 0.3.0", only: :test}
     ]
   end
 end

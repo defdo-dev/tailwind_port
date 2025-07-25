@@ -141,45 +141,48 @@ defmodule Defdo.TailwindPort do
 
   def init([]) do
     Process.flag(:trap_exit, true)
-    {:ok, %{
-      port: nil, 
-      latest_output: nil, 
-      exit_status: nil, 
-      fs: FS.random_fs(), 
-      retry_count: 0,
-      port_ready: false,
-      port_monitor_ref: nil,
-      startup_timeout_ref: nil,
-      health: %{
-        created_at: System.system_time(),
-        last_activity: System.system_time(),
-        total_outputs: 0,
-        css_builds: 0,
-        errors: 0
-      }
-    }}
+
+    {:ok,
+     %{
+       port: nil,
+       latest_output: nil,
+       exit_status: nil,
+       fs: FS.random_fs(),
+       retry_count: 0,
+       port_ready: false,
+       port_monitor_ref: nil,
+       startup_timeout_ref: nil,
+       health: %{
+         created_at: System.system_time(),
+         last_activity: System.system_time(),
+         total_outputs: 0,
+         css_builds: 0,
+         errors: 0
+       }
+     }}
   end
 
   def init(args) do
     Process.flag(:trap_exit, true)
 
-    {:ok, %{
-      port: nil, 
-      latest_output: nil, 
-      exit_status: nil, 
-      fs: FS.random_fs(), 
-      retry_count: 0,
-      port_ready: false,
-      port_monitor_ref: nil,
-      startup_timeout_ref: nil,
-      health: %{
-        created_at: System.system_time(),
-        last_activity: System.system_time(),
-        total_outputs: 0,
-        css_builds: 0,
-        errors: 0
-      }
-    }, {:continue, {:new, args}}}
+    {:ok,
+     %{
+       port: nil,
+       latest_output: nil,
+       exit_status: nil,
+       fs: FS.random_fs(),
+       retry_count: 0,
+       port_ready: false,
+       port_monitor_ref: nil,
+       startup_timeout_ref: nil,
+       health: %{
+         created_at: System.system_time(),
+         last_activity: System.system_time(),
+         total_outputs: 0,
+         css_builds: 0,
+         errors: 0
+       }
+     }, {:continue, {:new, args}}}
   end
 
   @doc """
@@ -250,7 +253,7 @@ defmodule Defdo.TailwindPort do
 
       # sometime we should download the tailwind binary in that case we will increase the timeout.
       timeout = if Keyword.has_key?(args, :cmd), do: 5000, else: 60000
-      
+
       try do
         case GenServer.call(name, {:new, args}, timeout) do
           {:error, _} = error -> error
@@ -268,8 +271,10 @@ defmodule Defdo.TailwindPort do
          {:ok, cmd} <- prepare_command(args, bin_path),
          {:ok, {command, final_args}} <- build_command_args(args, cmd, bin_path) do
       case create_port(command, final_args) do
-        {:ok, port} -> port
-        {:error, reason} -> 
+        {:ok, port} ->
+          port
+
+        {:error, reason} ->
           Logger.error("Failed to create port: #{inspect(reason)}")
           raise "Port creation failed: #{inspect(reason)}"
       end
@@ -282,6 +287,7 @@ defmodule Defdo.TailwindPort do
 
   defp get_bin_path do
     bin_path = bin_path()
+
     if File.dir?(bin_path) do
       {:ok, bin_path}
     else
@@ -294,15 +300,17 @@ defmodule Defdo.TailwindPort do
 
   defp prepare_command(args, bin_path) do
     cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
-    
+
     if File.exists?(cmd) do
       {:ok, cmd}
     else
       Logger.debug("The `cmd` doesn't have a valid tailwind binary, we proceed to download")
+
       case TailwindDownload.download(cmd) do
         :ok -> {:ok, cmd}
         {:error, reason} -> {:error, {:download_failed, reason}}
-        _ -> {:ok, cmd}  # download/1 doesn't return :ok currently, assume success
+        # download/1 doesn't return :ok currently, assume success
+        _ -> {:ok, cmd}
       end
     end
   end
@@ -329,6 +337,7 @@ defmodule Defdo.TailwindPort do
       else
         # Wraps command
         wrapper_script = "#{bin_path}/tailwind_cli.sh"
+
         if File.exists?(wrapper_script) do
           {wrapper_script, [cmd | options]}
         else
@@ -342,13 +351,14 @@ defmodule Defdo.TailwindPort do
 
   defp create_port(command, args) do
     try do
-      port = Port.open({:spawn_executable, command}, [
-        {:args, args},
-        :binary,
-        :exit_status,
-        :use_stdio,
-        :stderr_to_stdout
-      ])
+      port =
+        Port.open({:spawn_executable, command}, [
+          {:args, args},
+          :binary,
+          :exit_status,
+          :use_stdio,
+          :stderr_to_stdout
+        ])
 
       Port.monitor(port)
 
@@ -356,7 +366,7 @@ defmodule Defdo.TailwindPort do
       Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
 
       {:ok, port}
-    rescue  
+    rescue
       error -> {:error, error}
     catch
       kind, reason -> {:error, {kind, reason}}
@@ -657,14 +667,17 @@ defmodule Defdo.TailwindPort do
       {:ok, port} ->
         # Set startup timeout for port readiness
         timeout_ref = Process.send_after(self(), :startup_timeout, 10_000)
-        
-        new_state = %{state | 
-          port: port, 
-          retry_count: 0, 
-          port_ready: false,
-          startup_timeout_ref: timeout_ref
+
+        new_state = %{
+          state
+          | port: port,
+            retry_count: 0,
+            port_ready: false,
+            startup_timeout_ref: timeout_ref
         }
+
         {:noreply, new_state}
+
       {:error, reason} ->
         Logger.error("Failed to create port during initialization: #{inspect(reason)}")
         {:stop, {:port_creation_failed, reason}, state}
@@ -680,12 +693,15 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_call(:get_health, _from, state) do
-    health_info = Map.merge(state.health, %{
-      uptime_seconds: (System.system_time() - state.health.created_at) / 1_000_000_000,
-      port_active: not is_nil(state.port) and not is_nil(Port.info(state.port)),
-      port_ready: state.port_ready,
-      last_activity_seconds_ago: (System.system_time() - state.health.last_activity) / 1_000_000_000
-    })
+    health_info =
+      Map.merge(state.health, %{
+        uptime_seconds: (System.system_time() - state.health.created_at) / 1_000_000_000,
+        port_active: not is_nil(state.port) and not is_nil(Port.info(state.port)),
+        port_ready: state.port_ready,
+        last_activity_seconds_ago:
+          (System.system_time() - state.health.last_activity) / 1_000_000_000
+      })
+
     {:reply, health_info, state}
   end
 
@@ -728,17 +744,20 @@ defmodule Defdo.TailwindPort do
         if state.startup_timeout_ref do
           Process.cancel_timer(state.startup_timeout_ref)
         end
-        
+
         # Set startup timeout for port readiness
         timeout_ref = Process.send_after(self(), :startup_timeout, 10_000)
-        
-        new_state = %{state | 
-          port: port, 
-          retry_count: 0, 
-          port_ready: false,
-          startup_timeout_ref: timeout_ref
+
+        new_state = %{
+          state
+          | port: port,
+            retry_count: 0,
+            port_ready: false,
+            startup_timeout_ref: timeout_ref
         }
+
         {:reply, {:ok, new_state}, new_state}
+
       {:error, reason} ->
         Logger.error("Failed to create port after retries: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
@@ -749,10 +768,10 @@ defmodule Defdo.TailwindPort do
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     # Update health metrics
     updated_state = update_health_metrics(state, data)
-    
+
     # Mark port as ready on first successful output
     new_state = maybe_mark_port_ready(updated_state, data)
-    
+
     if String.contains?(data, "{") or String.contains?(data, "}") do
       Logger.debug(["CSS:", "#{inspect(data)}"])
 
@@ -779,11 +798,12 @@ defmodule Defdo.TailwindPort do
     Logger.info("Port exit: :exit_status: #{status}")
 
     # Update health metrics for exit
-    health = if status != 0 do
-      Map.update!(state.health, :errors, &(&1 + 1))
-    else
-      state.health
-    end
+    health =
+      if status != 0 do
+        Map.update!(state.health, :errors, &(&1 + 1))
+      else
+        state.health
+      end
 
     new_state = %{state | exit_status: status, health: health}
 
@@ -808,17 +828,19 @@ defmodule Defdo.TailwindPort do
 
   def handle_info(:startup_timeout, state) do
     Logger.warning("Port startup timeout reached")
-    
+
     # Reply to any waiting callers with timeout error
     waiting_callers = Map.get(state, :waiting_callers, [])
+
     Enum.each(waiting_callers, fn from ->
       GenServer.reply(from, {:error, :startup_timeout})
     end)
-    
-    new_state = state
-    |> Map.put(:waiting_callers, [])
-    |> Map.put(:startup_timeout_ref, nil)
-    
+
+    new_state =
+      state
+      |> Map.put(:waiting_callers, [])
+      |> Map.put(:startup_timeout_ref, nil)
+
     {:noreply, new_state}
   end
 
@@ -830,12 +852,13 @@ defmodule Defdo.TailwindPort do
   defp warn_if_orphaned(port_info) do
     if os_pid = port_info[:os_pid] do
       Logger.warning("Orphaned OS process: #{os_pid}")
-      
+
       # Attempt to kill the orphaned process
       case System.cmd("kill", ["-TERM", "#{os_pid}"], stderr_to_stdout: true) do
-        {_, 0} -> 
+        {_, 0} ->
           Logger.info("Successfully terminated orphaned process #{os_pid}")
-        {output, _} -> 
+
+        {output, _} ->
           Logger.warning("Failed to terminate orphaned process #{os_pid}: #{output}")
       end
     end
@@ -860,75 +883,88 @@ defmodule Defdo.TailwindPort do
     cond do
       Keyword.has_key?(args, :name) && not is_atom(Keyword.get(args, :name)) ->
         {:error, :invalid_name}
+
       Keyword.has_key?(args, :opts) && not is_list(Keyword.get(args, :opts)) ->
         {:error, :invalid_opts}
-      true -> :ok
+
+      true ->
+        :ok
     end
   end
+
   defp validate_start_args(_), do: {:error, :invalid_args}
 
   defp validate_new_args(args) when is_list(args) do
     cond do
       Keyword.has_key?(args, :cmd) && not is_binary(Keyword.get(args, :cmd)) ->
         {:error, :invalid_cmd}
+
       Keyword.has_key?(args, :opts) && not is_list(Keyword.get(args, :opts)) ->
         {:error, :invalid_opts}
-      true -> :ok
+
+      true ->
+        :ok
     end
   end
+
   defp validate_new_args(_), do: {:error, :invalid_args}
 
-  # Retry logic
-  @max_retries 3
-  @retry_delay 1000
+  # Retry logic - configurable for tests
+  @max_retries Application.compile_env(:tailwind_port, :max_retries, 3)
+  @retry_delay Application.compile_env(:tailwind_port, :retry_delay, 1000)
 
   # Health metrics
   defp update_health_metrics(state, data) do
-    health = state.health
-    |> Map.put(:last_activity, System.system_time())
-    |> Map.update!(:total_outputs, &(&1 + 1))
-    
+    health =
+      state.health
+      |> Map.put(:last_activity, System.system_time())
+      |> Map.update!(:total_outputs, &(&1 + 1))
+
     # Increment CSS builds if this looks like a CSS-related output
-    health = if String.contains?(data, "{") or String.contains?(data, "}") or 
-                String.contains?(data, "Done") or String.contains?(data, "Rebuilding") do
-      Map.update!(health, :css_builds, &(&1 + 1))
-    else
-      health
-    end
-    
+    health =
+      if String.contains?(data, "{") or String.contains?(data, "}") or
+           String.contains?(data, "Done") or String.contains?(data, "Rebuilding") do
+        Map.update!(health, :css_builds, &(&1 + 1))
+      else
+        health
+      end
+
     %{state | health: health}
   end
 
   # Port readiness detection
   defp maybe_mark_port_ready(%{port_ready: true} = state, _data), do: state
+
   defp maybe_mark_port_ready(%{port_ready: false} = state, data) do
     # Consider port ready if we get any output that suggests Tailwind is running
     # This could be refined based on specific Tailwind output patterns
-    ready = String.contains?(data, "Rebuilding") or 
-            String.contains?(data, "Done in") or
-            String.contains?(data, "Built successfully") or
-            String.contains?(data, "Watching") or
-            byte_size(data) > 0  # Basic check - any output suggests the port is working
-    
+    # Basic check - any output suggests the port is working
+    ready =
+      String.contains?(data, "Rebuilding") or
+        String.contains?(data, "Done in") or
+        String.contains?(data, "Built successfully") or
+        String.contains?(data, "Watching") or
+        byte_size(data) > 0
+
     if ready do
       Logger.debug("Port marked as ready based on output: #{inspect(String.slice(data, 0, 100))}")
-      
+
       # Cancel startup timeout
       if state.startup_timeout_ref do
         Process.cancel_timer(state.startup_timeout_ref)
       end
-      
+
       # Reply to any waiting callers
       waiting_callers = Map.get(state, :waiting_callers, [])
+
       Enum.each(waiting_callers, fn from ->
         GenServer.reply(from, :ok)
       end)
-      
-      %{state | 
-        port_ready: true, 
-        startup_timeout_ref: nil,
-        waiting_callers: []
-      }
+
+      state
+      |> Map.put(:port_ready, true)
+      |> Map.put(:startup_timeout_ref, nil)
+      |> Map.put(:waiting_callers, [])
     else
       state
     end
@@ -937,22 +973,30 @@ defmodule Defdo.TailwindPort do
   defp create_port_with_retry(_args, retry_count) when retry_count >= @max_retries do
     {:error, :max_retries_exceeded}
   end
+
   defp create_port_with_retry(args, retry_count) do
     try do
       port = new_port(args)
       {:ok, port}
     rescue
       error ->
-        Logger.warning("Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{inspect(error)}")
+        Logger.warning(
+          "Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{inspect(error)}"
+        )
+
         if retry_count < @max_retries - 1 do
-          Process.sleep(@retry_delay * (retry_count + 1))  # Exponential backoff
+          # Exponential backoff
+          Process.sleep(@retry_delay * (retry_count + 1))
           create_port_with_retry(args, retry_count + 1)
         else
           {:error, error}
         end
     catch
       kind, reason ->
-        Logger.warning("Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{kind} #{inspect(reason)}")
+        Logger.warning(
+          "Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{kind} #{inspect(reason)}"
+        )
+
         if retry_count < @max_retries - 1 do
           Process.sleep(@retry_delay * (retry_count + 1))
           create_port_with_retry(args, retry_count + 1)

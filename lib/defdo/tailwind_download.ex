@@ -362,7 +362,6 @@ defmodule Defdo.TailwindDownload do
     end
   end
 
-
   defp fetch_binary(url) do
     with {:ok, parsed_url} <- parse_url(url),
          :ok <- ensure_http_apps(),
@@ -396,7 +395,9 @@ defmodule Defdo.TailwindDownload do
           set_option = if "https" == scheme, do: :https_proxy, else: :proxy
           :httpc.set_options([{set_option, {{String.to_charlist(host), port}, []}}])
           :ok
-        _ -> {:error, :invalid_proxy_url}
+
+        _ ->
+          {:error, :invalid_proxy_url}
       end
     else
       :ok
@@ -430,8 +431,10 @@ defmodule Defdo.TailwindDownload do
     case :httpc.request(:get, {url_charlist, []}, http_options, options) do
       {:ok, {{_, 200, _}, _headers, body}} ->
         {:ok, body}
+
       {:ok, {{_, status_code, _}, _headers, _body}} ->
         {:error, {:http_error, status_code}}
+
       {:error, reason} ->
         {:error, {:request_failed, reason}}
     end
@@ -496,6 +499,7 @@ defmodule Defdo.TailwindDownload do
 
   defp ensure_directory(path) do
     dir = Path.dirname(path)
+
     case File.mkdir_p(dir) do
       :ok -> :ok
       {:error, reason} -> {:error, {:mkdir_failed, reason}}
@@ -541,7 +545,8 @@ defmodule Defdo.TailwindDownload do
       "macos" <> _ -> check_macho_signature(binary)
       "linux" <> _ -> check_elf_signature(binary)
       "freebsd" <> _ -> check_elf_signature(binary)
-      _ -> :ok  # Unknown platform, skip signature check
+      # Unknown platform, skip signature check
+      _ -> :ok
     end
   end
 
@@ -550,10 +555,14 @@ defmodule Defdo.TailwindDownload do
   defp check_pe_signature(_), do: {:error, :invalid_pe_signature}
 
   # Check for Mach-O (macOS) signature
-  defp check_macho_signature(<<0xFE, 0xED, 0xFA, 0xCE, _::binary>>), do: :ok  # 32-bit
-  defp check_macho_signature(<<0xFE, 0xED, 0xFA, 0xCF, _::binary>>), do: :ok  # 64-bit
-  defp check_macho_signature(<<0xCE, 0xFA, 0xED, 0xFE, _::binary>>), do: :ok  # 32-bit (reversed)
-  defp check_macho_signature(<<0xCF, 0xFA, 0xED, 0xFE, _::binary>>), do: :ok  # 64-bit (reversed)
+  # 32-bit
+  defp check_macho_signature(<<0xFE, 0xED, 0xFA, 0xCE, _::binary>>), do: :ok
+  # 64-bit
+  defp check_macho_signature(<<0xFE, 0xED, 0xFA, 0xCF, _::binary>>), do: :ok
+  # 32-bit (reversed)
+  defp check_macho_signature(<<0xCE, 0xFA, 0xED, 0xFE, _::binary>>), do: :ok
+  # 64-bit (reversed)
+  defp check_macho_signature(<<0xCF, 0xFA, 0xED, 0xFE, _::binary>>), do: :ok
   defp check_macho_signature(_), do: {:error, :invalid_macho_signature}
 
   # Check for ELF (Linux/FreeBSD) signature

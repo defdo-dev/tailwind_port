@@ -1,7 +1,7 @@
 defmodule Defdo.TailwindPort.WorkingFiles do
   @moduledoc """
   Working files structure for TailwindPort.
-  
+
   This module defines the structure for tracking various file paths
   used during Tailwind CSS processing.
   """

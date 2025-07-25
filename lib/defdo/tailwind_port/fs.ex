@@ -1,7 +1,7 @@
 defmodule Defdo.TailwindPort.FS do
   @moduledoc """
   Filesystem utilities for TailwindPort.
-  
+
   This module provides functionality for managing temporary directories
   and working files used by TailwindPort processes.
   """

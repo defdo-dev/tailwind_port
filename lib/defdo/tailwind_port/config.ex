@@ -1,7 +1,7 @@
 defmodule Defdo.TailwindPort.Config do
   @moduledoc """
   Configuration management for TailwindPort.
-  
+
   This module provides utilities for validating and managing Tailwind configuration
   files and port settings.
   """
@@ -63,10 +63,13 @@ defmodule Defdo.TailwindPort.Config do
   defp validate_config_syntax(content) do
     # Basic syntax validation - check for common issues
     cond do
-      not String.contains?(content, "module.exports") and not String.contains?(content, "export default") ->
+      not String.contains?(content, "module.exports") and
+          not String.contains?(content, "export default") ->
         {:error, :invalid_config}
+
       String.contains?(content, "content:") or String.contains?(content, "content =") ->
         :ok
+
       true ->
         {:error, :invalid_config}
     end
@@ -94,7 +97,7 @@ defmodule Defdo.TailwindPort.Config do
       plugins: [],
     }
     """
-    
+
     with :ok <- File.mkdir_p(Path.dirname(config_path)),
          :ok <- File.write(config_path, default_content) do
       :ok
@@ -110,7 +113,7 @@ defmodule Defdo.TailwindPort.Config do
   end
 
   defp get_config_path(opts) do
-    Keyword.get(opts, :config, "./tailwind.config.js") 
+    Keyword.get(opts, :config, "./tailwind.config.js")
   end
 
   defp get_input_path(opts) do
@@ -120,7 +123,9 @@ defmodule Defdo.TailwindPort.Config do
           nil -> "./assets/css/app.css"
           index -> Enum.at(opts, index + 1, "./assets/css/app.css")
         end
-      _ -> "./assets/css/app.css"
+
+      _ ->
+        "./assets/css/app.css"
     end
   end
 
@@ -131,7 +136,9 @@ defmodule Defdo.TailwindPort.Config do
           nil -> "./priv/static/css/app.css"
           index -> Enum.at(opts, index + 1, "./priv/static/css/app.css")
         end
-      _ -> "./priv/static/css/app.css"
+
+      _ ->
+        "./priv/static/css/app.css"
     end
   end
 
@@ -139,12 +146,16 @@ defmodule Defdo.TailwindPort.Config do
     case Keyword.get(opts, :opts, []) do
       opts when is_list(opts) ->
         case Enum.find_index(opts, &(&1 == "--content")) do
-          nil -> ["./lib/**/*.{ex,heex}", "./priv/static/html/**/*.html"]
-          index -> 
+          nil ->
+            ["./lib/**/*.{ex,heex}", "./priv/static/html/**/*.html"]
+
+          index ->
             content = Enum.at(opts, index + 1, "")
             String.split(content, ",")
         end
-      _ -> ["./lib/**/*.{ex,heex}", "./priv/static/html/**/*.html"]
+
+      _ ->
+        ["./lib/**/*.{ex,heex}", "./priv/static/html/**/*.html"]
     end
   end
 
