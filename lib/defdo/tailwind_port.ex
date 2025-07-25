@@ -125,13 +125,18 @@ defmodule Defdo.TailwindPort do
   use GenServer, restart: :transient
   require Logger
 
-  alias Defdo.TailwindDownload
   alias Defdo.TailwindPort.FS
+  alias Defdo.TailwindPort.PortManager
+  alias Defdo.TailwindPort.Health
+  alias Defdo.TailwindPort.Retry
+  alias Defdo.TailwindPort.Telemetry
+  alias Defdo.TailwindPort.Validation
+  alias Defdo.TailwindPort.ProcessManager
 
   # GenServer API
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(args \\ []) do
-    with :ok <- validate_start_args(args) do
+    with :ok <- Validation.validate_start_args(args) do
       {name, args} = Keyword.pop(args, :name, __MODULE__)
       GenServer.start_link(__MODULE__, args, name: name)
     end
@@ -142,47 +147,39 @@ defmodule Defdo.TailwindPort do
   def init([]) do
     Process.flag(:trap_exit, true)
 
-    {:ok,
-     %{
-       port: nil,
-       latest_output: nil,
-       exit_status: nil,
-       fs: FS.random_fs(),
-       retry_count: 0,
-       port_ready: false,
-       port_monitor_ref: nil,
-       startup_timeout_ref: nil,
-       health: %{
-         created_at: System.system_time(),
-         last_activity: System.system_time(),
-         total_outputs: 0,
-         css_builds: 0,
-         errors: 0
-       }
-     }}
+    state =
+      %{
+        port: nil,
+        latest_output: nil,
+        exit_status: nil,
+        fs: FS.random_fs(),
+        retry_count: 0,
+        port_ready: false,
+        port_monitor_ref: nil,
+        health: Health.create_initial_health()
+      }
+      |> ProcessManager.initialize_state()
+
+    {:ok, state}
   end
 
   def init(args) do
     Process.flag(:trap_exit, true)
 
-    {:ok,
-     %{
-       port: nil,
-       latest_output: nil,
-       exit_status: nil,
-       fs: FS.random_fs(),
-       retry_count: 0,
-       port_ready: false,
-       port_monitor_ref: nil,
-       startup_timeout_ref: nil,
-       health: %{
-         created_at: System.system_time(),
-         last_activity: System.system_time(),
-         total_outputs: 0,
-         css_builds: 0,
-         errors: 0
-       }
-     }, {:continue, {:new, args}}}
+    state =
+      %{
+        port: nil,
+        latest_output: nil,
+        exit_status: nil,
+        fs: FS.random_fs(),
+        retry_count: 0,
+        port_ready: false,
+        port_monitor_ref: nil,
+        health: Health.create_initial_health()
+      }
+      |> ProcessManager.initialize_state()
+
+    {:ok, state, {:continue, {:new, args}}}
   end
 
   @doc """
@@ -244,7 +241,7 @@ defmodule Defdo.TailwindPort do
   """
   @spec new(GenServer.name(), keyword()) :: {:ok, map()} | {:error, term()}
   def new(name \\ __MODULE__, args) do
-    with :ok <- validate_new_args(args) do
+    with :ok <- Validation.validate_port_args(args) do
       unless Keyword.has_key?(args, :opts) do
         Logger.warning(
           "Keyword `opts` must contain the arguments required by tailwind_port to work as you expect, but it is not provided."
@@ -267,116 +264,7 @@ defmodule Defdo.TailwindPort do
   end
 
   defp new_port(args) do
-    with {:ok, bin_path} <- get_bin_path(),
-         {:ok, cmd} <- prepare_command(args, bin_path),
-         {:ok, {command, final_args}} <- build_command_args(args, cmd, bin_path) do
-      case create_port(command, final_args) do
-        {:ok, port} ->
-          port
-
-        {:error, reason} ->
-          Logger.error("Failed to create port: #{inspect(reason)}")
-          raise "Port creation failed: #{inspect(reason)}"
-      end
-    else
-      {:error, reason} ->
-        Logger.error("Failed to prepare port: #{inspect(reason)}")
-        raise "Port preparation failed: #{inspect(reason)}"
-    end
-  end
-
-  defp get_bin_path do
-    bin_path = bin_path()
-
-    if File.dir?(bin_path) do
-      {:ok, bin_path}
-    else
-      case File.mkdir_p(bin_path) do
-        :ok -> {:ok, bin_path}
-        {:error, reason} -> {:error, {:mkdir_failed, reason}}
-      end
-    end
-  end
-
-  defp prepare_command(args, bin_path) do
-    cmd = Keyword.get(args, :cmd, "#{bin_path}/tailwindcss")
-
-    if File.exists?(cmd) do
-      {:ok, cmd}
-    else
-      Logger.debug("The `cmd` doesn't have a valid tailwind binary, we proceed to download")
-
-      case TailwindDownload.download(cmd) do
-        :ok -> {:ok, cmd}
-        {:error, reason} -> {:error, {:download_failed, reason}}
-        # download/1 doesn't return :ok currently, assume success
-        _ -> {:ok, cmd}
-      end
-    end
-  end
-
-  defp build_command_args(args, cmd, bin_path) do
-    opts = Keyword.get(args, :opts, [])
-
-    options =
-      opts
-      |> maybe_add_default_options(["-i", "--input"], [])
-      |> maybe_add_default_options(["-o", "--output"], [])
-      |> maybe_add_default_options(["-w", "--watch"], [])
-      |> maybe_add_default_options(["-p", "--poll"], [])
-      |> maybe_add_default_options(["--content"], [])
-      |> maybe_add_default_options(["--postcss"], [])
-      |> maybe_add_default_options(["-m", "--minify"], [])
-      |> maybe_add_default_options(["-c", "--config"], [])
-      |> maybe_add_default_options(["--no-autoprefixer"], [])
-
-    {command, final_args} =
-      if "-i" in opts || "--input" in opts do
-        # direct call binary
-        {cmd, options}
-      else
-        # Wraps command
-        wrapper_script = "#{bin_path}/tailwind_cli.sh"
-
-        if File.exists?(wrapper_script) do
-          {wrapper_script, [cmd | options]}
-        else
-          Logger.warning("Wrapper script not found at #{wrapper_script}, using direct command")
-          {cmd, options}
-        end
-      end
-
-    {:ok, {command, final_args}}
-  end
-
-  defp create_port(command, args) do
-    try do
-      port =
-        Port.open({:spawn_executable, command}, [
-          {:args, args},
-          :binary,
-          :exit_status,
-          :use_stdio,
-          :stderr_to_stdout
-        ])
-
-      Port.monitor(port)
-
-      Logger.debug(["Running command #{command} #{Enum.join(args, " ")}"], color: :magenta)
-      Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
-
-      {:ok, port}
-    rescue
-      error -> {:error, error}
-    catch
-      kind, reason -> {:error, {kind, reason}}
-    end
-  end
-
-  # bin path for local test
-  defp bin_path do
-    project_path = :code.priv_dir(:tailwind_port)
-    Path.join([project_path, "bin"])
+    PortManager.create_port(args)
   end
 
   @doc """
@@ -663,18 +551,16 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_continue({:new, args}, state) do
-    case create_port_with_retry(args, state.retry_count) do
+    case Retry.with_backoff(fn -> new_port(args) end) do
       {:ok, port} ->
-        # Set startup timeout for port readiness
-        timeout_ref = Process.send_after(self(), :startup_timeout, 10_000)
-
-        new_state = %{
-          state
-          | port: port,
-            retry_count: 0,
-            port_ready: false,
-            startup_timeout_ref: timeout_ref
-        }
+        new_state =
+          %{
+            state
+            | port: port,
+              retry_count: 0,
+              port_ready: false
+          }
+          |> ProcessManager.setup_startup_timeout(10_000)
 
         {:noreply, new_state}
 
@@ -693,15 +579,7 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_call(:get_health, _from, state) do
-    health_info =
-      Map.merge(state.health, %{
-        uptime_seconds: (System.system_time() - state.health.created_at) / 1_000_000_000,
-        port_active: not is_nil(state.port) and not is_nil(Port.info(state.port)),
-        port_ready: state.port_ready,
-        last_activity_seconds_ago:
-          (System.system_time() - state.health.last_activity) / 1_000_000_000
-      })
-
+    health_info = Health.calculate_health_info(state)
     {:reply, health_info, state}
   end
 
@@ -711,8 +589,7 @@ defmodule Defdo.TailwindPort do
 
   def handle_call(:wait_until_ready, from, %{port_ready: false} = state) do
     # Store the caller to reply when port becomes ready
-    waiting_callers = Map.get(state, :waiting_callers, [])
-    new_state = Map.put(state, :waiting_callers, [from | waiting_callers])
+    new_state = ProcessManager.add_waiting_caller(state, from)
     {:noreply, new_state}
   end
 
@@ -738,23 +615,17 @@ defmodule Defdo.TailwindPort do
   end
 
   def handle_call({:new, args}, _from, state) do
-    case create_port_with_retry(args, state.retry_count) do
+    case Retry.with_backoff(fn -> new_port(args) end) do
       {:ok, port} ->
-        # Cancel any existing startup timeout
-        if state.startup_timeout_ref do
-          Process.cancel_timer(state.startup_timeout_ref)
-        end
-
-        # Set startup timeout for port readiness
-        timeout_ref = Process.send_after(self(), :startup_timeout, 10_000)
-
-        new_state = %{
-          state
-          | port: port,
-            retry_count: 0,
-            port_ready: false,
-            startup_timeout_ref: timeout_ref
-        }
+        new_state =
+          %{
+            state
+            | port: port,
+              retry_count: 0,
+              port_ready: false
+          }
+          |> ProcessManager.cancel_startup_timeout()
+          |> ProcessManager.setup_startup_timeout(10_000)
 
         {:reply, {:ok, new_state}, new_state}
 
@@ -767,13 +638,16 @@ defmodule Defdo.TailwindPort do
   # This callback handles data incoming from the command's STDOUT
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     # Update health metrics
-    updated_state = update_health_metrics(state, data)
+    updated_health = Health.update_metrics(state.health, data)
+    updated_state = %{state | health: updated_health}
 
     # Mark port as ready on first successful output
-    new_state = maybe_mark_port_ready(updated_state, data)
+    new_state = Health.maybe_mark_port_ready(updated_state, data)
 
     if String.contains?(data, "{") or String.contains?(data, "}") do
       Logger.debug(["CSS:", "#{inspect(data)}"])
+
+      Telemetry.increment_counter(:css_builds, %{port: inspect(port)})
 
       :telemetry.execute(
         [:tailwind_port, :css, :done],
@@ -800,7 +674,8 @@ defmodule Defdo.TailwindPort do
     # Update health metrics for exit
     health =
       if status != 0 do
-        Map.update!(state.health, :errors, &(&1 + 1))
+        Telemetry.track_error(:port_exit, {:exit_status, status}, %{port: inspect(port)})
+        Health.increment_errors(state.health)
       else
         state.health
       end
@@ -816,31 +691,18 @@ defmodule Defdo.TailwindPort do
     {:noreply, new_state}
   end
 
-  def handle_info({:DOWN, _ref, :port, port, :normal}, state) do
-    Logger.info("Handled :DOWN message from port: #{inspect(port)}")
-    {:noreply, state}
+  def handle_info({:DOWN, _ref, :port, port, reason}, state) do
+    new_state = ProcessManager.handle_port_down(state, port, reason)
+    {:noreply, new_state}
   end
 
-  def handle_info({:EXIT, port, :normal}, state) do
-    Logger.info("handle_info: EXIT - #{inspect(port)}")
-    {:noreply, state}
+  def handle_info({:EXIT, port, reason}, state) do
+    new_state = ProcessManager.handle_port_exit(state, port, reason)
+    {:noreply, new_state}
   end
 
   def handle_info(:startup_timeout, state) do
-    Logger.warning("Port startup timeout reached")
-
-    # Reply to any waiting callers with timeout error
-    waiting_callers = Map.get(state, :waiting_callers, [])
-
-    Enum.each(waiting_callers, fn from ->
-      GenServer.reply(from, {:error, :startup_timeout})
-    end)
-
-    new_state =
-      state
-      |> Map.put(:waiting_callers, [])
-      |> Map.put(:startup_timeout_ref, nil)
-
+    new_state = ProcessManager.handle_startup_timeout(state)
     {:noreply, new_state}
   end
 
@@ -861,148 +723,6 @@ defmodule Defdo.TailwindPort do
         {output, _} ->
           Logger.warning("Failed to terminate orphaned process #{os_pid}: #{output}")
       end
-    end
-  end
-
-  defp maybe_add_default_options(options, keys_to_validate, default) do
-    if options_empty?(options, keys_to_validate) do
-      options ++ default
-    else
-      options
-    end
-  end
-
-  defp options_empty?(options, keys) do
-    options
-    |> Enum.filter(&(&1 in keys))
-    |> Enum.empty?()
-  end
-
-  # Validation functions
-  defp validate_start_args(args) when is_list(args) do
-    cond do
-      Keyword.has_key?(args, :name) && not is_atom(Keyword.get(args, :name)) ->
-        {:error, :invalid_name}
-
-      Keyword.has_key?(args, :opts) && not is_list(Keyword.get(args, :opts)) ->
-        {:error, :invalid_opts}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp validate_start_args(_), do: {:error, :invalid_args}
-
-  defp validate_new_args(args) when is_list(args) do
-    cond do
-      Keyword.has_key?(args, :cmd) && not is_binary(Keyword.get(args, :cmd)) ->
-        {:error, :invalid_cmd}
-
-      Keyword.has_key?(args, :opts) && not is_list(Keyword.get(args, :opts)) ->
-        {:error, :invalid_opts}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp validate_new_args(_), do: {:error, :invalid_args}
-
-  # Retry logic - configurable for tests
-  @max_retries Application.compile_env(:tailwind_port, :max_retries, 3)
-  @retry_delay Application.compile_env(:tailwind_port, :retry_delay, 1000)
-
-  # Health metrics
-  defp update_health_metrics(state, data) do
-    health =
-      state.health
-      |> Map.put(:last_activity, System.system_time())
-      |> Map.update!(:total_outputs, &(&1 + 1))
-
-    # Increment CSS builds if this looks like a CSS-related output
-    health =
-      if String.contains?(data, "{") or String.contains?(data, "}") or
-           String.contains?(data, "Done") or String.contains?(data, "Rebuilding") do
-        Map.update!(health, :css_builds, &(&1 + 1))
-      else
-        health
-      end
-
-    %{state | health: health}
-  end
-
-  # Port readiness detection
-  defp maybe_mark_port_ready(%{port_ready: true} = state, _data), do: state
-
-  defp maybe_mark_port_ready(%{port_ready: false} = state, data) do
-    # Consider port ready if we get any output that suggests Tailwind is running
-    # This could be refined based on specific Tailwind output patterns
-    # Basic check - any output suggests the port is working
-    ready =
-      String.contains?(data, "Rebuilding") or
-        String.contains?(data, "Done in") or
-        String.contains?(data, "Built successfully") or
-        String.contains?(data, "Watching") or
-        byte_size(data) > 0
-
-    if ready do
-      Logger.debug("Port marked as ready based on output: #{inspect(String.slice(data, 0, 100))}")
-
-      # Cancel startup timeout
-      if state.startup_timeout_ref do
-        Process.cancel_timer(state.startup_timeout_ref)
-      end
-
-      # Reply to any waiting callers
-      waiting_callers = Map.get(state, :waiting_callers, [])
-
-      Enum.each(waiting_callers, fn from ->
-        GenServer.reply(from, :ok)
-      end)
-
-      state
-      |> Map.put(:port_ready, true)
-      |> Map.put(:startup_timeout_ref, nil)
-      |> Map.put(:waiting_callers, [])
-    else
-      state
-    end
-  end
-
-  defp create_port_with_retry(_args, retry_count) when retry_count >= @max_retries do
-    {:error, :max_retries_exceeded}
-  end
-
-  defp create_port_with_retry(args, retry_count) do
-    try do
-      port = new_port(args)
-      {:ok, port}
-    rescue
-      error ->
-        Logger.warning(
-          "Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{inspect(error)}"
-        )
-
-        if retry_count < @max_retries - 1 do
-          # Exponential backoff
-          Process.sleep(@retry_delay * (retry_count + 1))
-          create_port_with_retry(args, retry_count + 1)
-        else
-          {:error, error}
-        end
-    catch
-      kind, reason ->
-        Logger.warning(
-          "Port creation failed (attempt #{retry_count + 1}/#{@max_retries}): #{kind} #{inspect(reason)}"
-        )
-
-        if retry_count < @max_retries - 1 do
-          Process.sleep(@retry_delay * (retry_count + 1))
-          create_port_with_retry(args, retry_count + 1)
-        else
-          {:error, {kind, reason}}
-        end
     end
   end
 end

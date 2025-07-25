@@ -3,7 +3,6 @@ defmodule Defdo.TailwindPortHealthTest do
   use ExUnit.Case
   alias Defdo.TailwindPort
 
-  @tag :capture_log
   test "health metrics are tracked" do
     name = :health_test_port
 
@@ -24,7 +23,6 @@ defmodule Defdo.TailwindPortHealthTest do
     TailwindPort.terminate(name)
   end
 
-  @tag :capture_log
   test "health metrics update with port activity" do
     name = :health_activity_test
     opts = ["-i", "./assets/css/app.css", "--content", "./priv/static/html/*.html", "-m"]

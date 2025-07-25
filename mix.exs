@@ -48,7 +48,12 @@ defmodule TailwindPort.MixProject do
         ],
         groups_for_extras: [
           "Getting Started": ["README.md", "guides/QUICK_START.md"],
-          Guides: ["guides/DEVELOPER_GUIDE.md", "guides/USAGE.md", "guides/EXAMPLES.md", "guides/PERFORMANCE.md"],
+          Guides: [
+            "guides/DEVELOPER_GUIDE.md",
+            "guides/USAGE.md",
+            "guides/EXAMPLES.md",
+            "guides/PERFORMANCE.md"
+          ],
           Reference: ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
           "Project Info": ["CHANGELOG.md", "CLAUDE.md"]
         ]

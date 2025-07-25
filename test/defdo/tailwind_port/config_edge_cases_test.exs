@@ -6,23 +6,23 @@ defmodule Defdo.TailwindPort.ConfigEdgeCasesTest do
   describe "edge cases and error handling" do
     test "validate_config with malformed JSON" do
       config_path = "/tmp/malformed_config.js"
-      
-      File.write!(config_path, "module.exports = { invalid json }")
-      
+
+      File.write!(config_path, "module.exports = { invalid: json")
+
       result = Config.validate_config(config_path)
       assert {:error, _reason} = result
-      
+
       File.rm!(config_path)
     end
 
     test "validate_config with empty file" do
       config_path = "/tmp/empty_config.js"
-      
+
       File.write!(config_path, "")
-      
+
       result = Config.validate_config(config_path)
       assert {:error, _reason} = result
-      
+
       File.rm!(config_path)
     end
 
@@ -60,15 +60,15 @@ defmodule Defdo.TailwindPort.ConfigEdgeCasesTest do
     test "ensure_config creates directory if needed" do
       test_dir = "/tmp/test_config_dir_#{:rand.uniform(10000)}"
       config_path = "#{test_dir}/tailwind.config.js"
-      
+
       # Ensure directory doesn't exist
       File.rm_rf!(test_dir)
       refute File.exists?(test_dir)
-      
+
       result = Config.ensure_config(config_path)
       assert :ok = result
       assert File.exists?(config_path)
-      
+
       # Cleanup
       File.rm_rf!(test_dir)
     end
@@ -77,10 +77,10 @@ defmodule Defdo.TailwindPort.ConfigEdgeCasesTest do
       # Test with a simple valid config that has content field
       config_path = "/tmp/simple_config.js"
       File.write!(config_path, "module.exports = { content: ['./src/**/*.js'] }")
-      
+
       result = Config.validate_config(config_path)
       assert :ok = result
-      
+
       File.rm!(config_path)
     end
 

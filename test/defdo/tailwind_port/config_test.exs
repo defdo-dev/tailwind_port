@@ -70,7 +70,7 @@ defmodule Defdo.TailwindPort.ConfigTest do
   test "get_effective_config with default arguments" do
     # Test with no arguments (line 39)
     config = Config.get_effective_config()
-    
+
     assert is_map(config)
     assert config.timeout == 5000
     assert config.retry_count == 3

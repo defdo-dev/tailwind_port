@@ -6,6 +6,8 @@ defmodule Defdo.TailwindPort.Config do
   files and port settings.
   """
 
+  alias Defdo.TailwindPort.Validation
+
   @type config_error :: {:error, :invalid_config | :config_not_found | :config_parse_error}
 
   @doc """
@@ -13,10 +15,10 @@ defmodule Defdo.TailwindPort.Config do
   """
   @spec validate_config(String.t()) :: :ok | config_error()
   def validate_config(config_path) when is_binary(config_path) do
-    with {:ok, content} <- read_config_file(config_path),
-         :ok <- validate_config_syntax(content),
-         :ok <- validate_config_structure(content) do
-      :ok
+    case Validation.validate_config(config_path) do
+      :ok -> :ok
+      {:error, :config_not_found} -> {:error, :config_not_found}
+      {:error, _} -> {:error, :invalid_config}
     end
   end
 
@@ -51,35 +53,6 @@ defmodule Defdo.TailwindPort.Config do
   end
 
   # Private functions
-
-  defp read_config_file(config_path) do
-    case File.read(config_path) do
-      {:ok, content} -> {:ok, content}
-      {:error, :enoent} -> {:error, :config_not_found}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp validate_config_syntax(content) do
-    # Basic syntax validation - check for common issues
-    cond do
-      not String.contains?(content, "module.exports") and
-          not String.contains?(content, "export default") ->
-        {:error, :invalid_config}
-
-      String.contains?(content, "content:") or String.contains?(content, "content =") ->
-        :ok
-
-      true ->
-        {:error, :invalid_config}
-    end
-  end
-
-  defp validate_config_structure(_content) do
-    # For now, we'll just do basic checks
-    # In a real implementation, we might parse the JS and validate structure
-    :ok
-  end
 
   defp create_default_config(config_path) do
     default_content = """
