@@ -135,9 +135,8 @@ defmodule Defdo.TailwindPort.HttpClient do
   def fetch_binary(url) when is_binary(url) do
     with {:ok, parsed_url} <- parse_url(url),
          :ok <- ensure_http_apps(),
-         :ok <- setup_proxy(parsed_url.scheme),
-         {:ok, response} <- make_http_request(url) do
-      {:ok, response}
+         :ok <- setup_proxy(parsed_url.scheme) do
+      make_http_request(url)
     end
   end
 
@@ -196,20 +195,27 @@ defmodule Defdo.TailwindPort.HttpClient do
   """
   @spec setup_proxy(String.t()) :: :ok | {:error, :invalid_proxy_url}
   def setup_proxy(scheme) do
-    if proxy = proxy_for_scheme(scheme) do
-      case URI.parse(proxy) do
-        %URI{host: host, port: port} when is_binary(host) and is_integer(port) ->
-          Logger.debug("Using #{String.upcase(scheme)}_PROXY: #{proxy}")
-          set_option = if "https" == scheme, do: :https_proxy, else: :proxy
-          :httpc.set_options([{set_option, {{String.to_charlist(host), port}, []}}])
-          :ok
-
-        _ ->
-          {:error, :invalid_proxy_url}
-      end
-    else
-      :ok
+    case proxy_for_scheme(scheme) do
+      nil -> :ok
+      proxy -> configure_proxy(scheme, proxy)
     end
+  end
+
+  defp configure_proxy(scheme, proxy) do
+    case URI.parse(proxy) do
+      %URI{host: host, port: port} when is_binary(host) and is_integer(port) ->
+        set_proxy_option(scheme, proxy, host, port)
+
+      _ ->
+        {:error, :invalid_proxy_url}
+    end
+  end
+
+  defp set_proxy_option(scheme, proxy, host, port) do
+    Logger.debug("Using #{String.upcase(scheme)}_PROXY: #{proxy}")
+    set_option = if "https" == scheme, do: :https_proxy, else: :proxy
+    :httpc.set_options([{set_option, {{String.to_charlist(host), port}, []}}])
+    :ok
   end
 
   @doc """

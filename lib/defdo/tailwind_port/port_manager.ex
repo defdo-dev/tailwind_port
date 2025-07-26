@@ -224,27 +224,25 @@ defmodule Defdo.TailwindPort.PortManager do
   # Private functions
 
   defp create_elixir_port(command, args) do
-    try do
-      port =
-        Port.open({:spawn_executable, command}, [
-          {:args, args},
-          :binary,
-          :exit_status,
-          :use_stdio,
-          :stderr_to_stdout
-        ])
+    port =
+      Port.open({:spawn_executable, command}, [
+        {:args, args},
+        :binary,
+        :exit_status,
+        :use_stdio,
+        :stderr_to_stdout
+      ])
 
-      Port.monitor(port)
+    Port.monitor(port)
 
-      Logger.debug(["Running command #{command} #{Enum.join(args, " ")}"], color: :magenta)
-      Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
+    Logger.debug(["Running command #{command} #{Enum.join(args, " ")}"])
+    Logger.debug(["Running command ", Path.basename(command), " Port is monitored."])
 
-      {:ok, port}
-    rescue
-      error -> {:error, error}
-    catch
-      kind, reason -> {:error, {kind, reason}}
-    end
+    {:ok, port}
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp get_default_bin_path do

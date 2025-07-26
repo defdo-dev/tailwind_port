@@ -184,29 +184,15 @@ defmodule Defdo.TailwindPort.Retry do
   """
   @spec should_retry?(term()) :: boolean()
   def should_retry?(error) do
-    case error do
-      # Transient network/system errors
-      :timeout -> true
-      :econnrefused -> true
-      :enoent -> true
-      :resource_unavailable -> true
-      {:error, :timeout} -> true
-      {:error, :econnrefused} -> true
-      {:error, :enoent} -> true
-      # Port/process related transient errors
-      {:port_creation_failed, _} -> true
-      {:download_failed, _} -> true
-      {:mkdir_failed, _} -> true
-      # Permanent errors that shouldn't be retried
-      :invalid_args -> false
-      :invalid_cmd -> false
-      :invalid_opts -> false
-      {:error, :invalid_binary} -> false
-      {:error, :permission_denied} -> false
-      # Default: retry unknown errors (conservative approach)
-      _ -> true
-    end
+    not permanent_error?(error)
   end
+
+  defp permanent_error?(:invalid_args), do: true
+  defp permanent_error?(:invalid_cmd), do: true
+  defp permanent_error?(:invalid_opts), do: true
+  defp permanent_error?({:error, :invalid_binary}), do: true
+  defp permanent_error?({:error, :permission_denied}), do: true
+  defp permanent_error?(_), do: false
 
   @doc """
   Gets the configured maximum number of retries.
@@ -270,26 +256,24 @@ defmodule Defdo.TailwindPort.Retry do
   end
 
   defp execute_with_retry(fun, retry_count, max_retries, base_delay, backoff_factor) do
-    try do
-      case fun.() do
-        {:ok, result} ->
-          {:ok, result}
+    case fun.() do
+      {:ok, result} ->
+        {:ok, result}
 
-        {:error, reason} ->
-          handle_retry_error(reason, fun, retry_count, max_retries, base_delay, backoff_factor)
+      {:error, reason} ->
+        handle_retry_error(reason, fun, retry_count, max_retries, base_delay, backoff_factor)
 
-        # Assume success if not error tuple
-        result ->
-          {:ok, result}
-      end
-    rescue
-      error ->
-        handle_retry_error(error, fun, retry_count, max_retries, base_delay, backoff_factor)
-    catch
-      kind, reason ->
-        error = {kind, reason}
-        handle_retry_error(error, fun, retry_count, max_retries, base_delay, backoff_factor)
+      # Assume success if not error tuple
+      result ->
+        {:ok, result}
     end
+  rescue
+    error ->
+      handle_retry_error(error, fun, retry_count, max_retries, base_delay, backoff_factor)
+  catch
+    kind, reason ->
+      error = {kind, reason}
+      handle_retry_error(error, fun, retry_count, max_retries, base_delay, backoff_factor)
   end
 
   defp handle_retry_error(error, fun, retry_count, max_retries, base_delay, backoff_factor) do

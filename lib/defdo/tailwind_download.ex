@@ -368,12 +368,10 @@ defmodule Defdo.TailwindDownload do
   # New helper functions for improved error handling
 
   defp build_download_url(base_url) do
-    try do
-      url = get_url(base_url)
-      {:ok, url}
-    rescue
-      error -> {:error, {:url_build_failed, error}}
-    end
+    url = get_url(base_url)
+    {:ok, url}
+  rescue
+    error -> {:error, {:url_build_failed, error}}
   end
 
   defp ensure_directory(path) do

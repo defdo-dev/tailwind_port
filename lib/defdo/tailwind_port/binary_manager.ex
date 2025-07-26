@@ -77,27 +77,36 @@ defmodule Defdo.TailwindPort.BinaryManager do
   """
   @spec get_target() :: target()
   def get_target do
-    arch_str = :erlang.system_info(:system_architecture)
-    arch = List.to_string(arch_str)
-
     case :os.type() do
-      {:win32, _} ->
-        "windows-x64.exe"
-
-      {:unix, :darwin} ->
-        case arch do
-          "aarch64" <> _ -> "macos-arm64"
-          "arm64" <> _ -> "macos-arm64"
-          _ -> "macos-x64"
-        end
-
-      {:unix, _} ->
-        cond do
-          String.contains?(arch, "aarch64") -> "linux-arm64"
-          String.contains?(arch, "arm") -> "linux-armv7"
-          true -> "linux-x64"
-        end
+      {:win32, _} -> "windows-x64.exe"
+      {:unix, :darwin} -> get_macos_target()
+      {:unix, _} -> get_linux_target()
     end
+  end
+
+  defp get_macos_target do
+    arch = get_architecture_string()
+
+    cond do
+      String.contains?(arch, "aarch64") -> "macos-arm64"
+      String.contains?(arch, "arm64") -> "macos-arm64"
+      true -> "macos-x64"
+    end
+  end
+
+  defp get_linux_target do
+    arch = get_architecture_string()
+
+    cond do
+      String.contains?(arch, "aarch64") -> "linux-arm64"
+      String.contains?(arch, "arm") -> "linux-armv7"
+      true -> "linux-x64"
+    end
+  end
+
+  defp get_architecture_string do
+    :erlang.system_info(:system_architecture)
+    |> List.to_string()
   end
 
   @doc """
@@ -146,9 +155,8 @@ defmodule Defdo.TailwindPort.BinaryManager do
   """
   @spec verify_binary(binary()) :: verification_result()
   def verify_binary(binary) when is_binary(binary) do
-    with :ok <- check_binary_size(binary),
-         :ok <- check_binary_signature(binary) do
-      :ok
+    with :ok <- check_binary_size(binary) do
+      check_binary_signature(binary)
     end
   end
 

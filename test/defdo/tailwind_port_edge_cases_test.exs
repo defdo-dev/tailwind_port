@@ -148,7 +148,7 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
 
       # Process should handle these messages without crashing
       Process.sleep(100)
-      # Process might or might not be alive depending on the messages, 
+      # Process might or might not be alive depending on the messages,
       # but it shouldn't crash
       :ok
 

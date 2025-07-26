@@ -181,9 +181,8 @@ defmodule Defdo.TailwindPort.ProjectSetup do
   def create_tailwind_config(config_path \\ "assets/tailwind.config.js") do
     expanded_path = Path.expand(config_path)
 
-    with :ok <- validate_config_path(expanded_path),
-         :ok <- maybe_create_config_file(expanded_path) do
-      :ok
+    with :ok <- validate_config_path(expanded_path) do
+      maybe_create_config_file(expanded_path)
     end
   end
 

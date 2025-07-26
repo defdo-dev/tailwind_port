@@ -40,7 +40,7 @@ defmodule Defdo.TailwindPort.ConfigEdgeCasesTest do
       config = Config.get_effective_config(opts: ["-m", "--minify"])
       assert config.minify == true
 
-      # Test with config file  
+      # Test with config file
       config = Config.get_effective_config(config: "./custom.config.js")
       assert config.config_path == "./custom.config.js"
 

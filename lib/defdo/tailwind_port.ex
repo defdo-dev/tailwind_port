@@ -126,12 +126,12 @@ defmodule Defdo.TailwindPort do
   require Logger
 
   alias Defdo.TailwindPort.FS
-  alias Defdo.TailwindPort.PortManager
   alias Defdo.TailwindPort.Health
+  alias Defdo.TailwindPort.PortManager
+  alias Defdo.TailwindPort.ProcessManager
   alias Defdo.TailwindPort.Retry
   alias Defdo.TailwindPort.Telemetry
   alias Defdo.TailwindPort.Validation
-  alias Defdo.TailwindPort.ProcessManager
 
   # GenServer API
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -348,12 +348,10 @@ defmodule Defdo.TailwindPort do
   """
   @spec ready?(GenServer.name(), timeout()) :: boolean()
   def ready?(name \\ __MODULE__, timeout \\ 5000) do
-    try do
-      GenServer.call(name, :port_ready?, timeout)
-    catch
-      :exit, {:timeout, _} -> false
-      :exit, _ -> false
-    end
+    GenServer.call(name, :port_ready?, timeout)
+  catch
+    :exit, {:timeout, _} -> false
+    :exit, _ -> false
   end
 
   @doc """
@@ -423,11 +421,9 @@ defmodule Defdo.TailwindPort do
   """
   @spec wait_until_ready(GenServer.name(), timeout()) :: :ok | {:error, :timeout}
   def wait_until_ready(name \\ __MODULE__, timeout \\ 10_000) do
-    try do
-      GenServer.call(name, :wait_until_ready, timeout)
-    catch
-      :exit, {:timeout, _} -> {:error, :timeout}
-    end
+    GenServer.call(name, :wait_until_ready, timeout)
+  catch
+    :exit, {:timeout, _} -> {:error, :timeout}
   end
 
   @doc """
