@@ -1,0 +1,145 @@
+name: Hex.pm Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  validate-and-test:
+    name: Validate and Test
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        otp: ['27']
+        elixir: ['1.17']
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.elixir }}
+        version-type: loose
+        install-hex: true
+        install-rebar: true
+    
+    - name: Validate version in mix.exs
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        MIX_VERSION=$(grep -o 'version: "[^"]*"' mix.exs | cut -d'"' -f2)
+        
+        if [ "$TAG_VERSION" != "$MIX_VERSION" ]; then
+          echo "❌ Version mismatch: tag=$TAG_VERSION, mix.exs=$MIX_VERSION"
+          exit 1
+        fi
+        
+        echo "✅ Version validation passed: $TAG_VERSION"
+    
+    - uses: actions/cache@v4
+      with:
+        path: |
+          deps
+          _build
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-
+    
+    - name: Install dependencies
+      run: mix deps.get
+    
+    - name: Run tests
+      run: mix test
+    
+    - name: Check code quality
+      run: |
+        mix format --check-formatted
+        mix credo --strict
+
+  publish:
+    name: Publish to Hex.pm
+    runs-on: ubuntu-22.04
+    needs: validate-and-test
+    environment: production
+    strategy:
+      matrix:
+        otp: ['27']
+        elixir: ['1.17']
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.elixir }}
+        version-type: loose
+        install-hex: true
+        install-rebar: true
+    
+    - uses: actions/cache@v4
+      with:
+        path: |
+          deps
+          _build
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-
+    
+    - name: Install dependencies
+      run: |
+        mix deps.get --only prod
+    
+    - name: Publish to Hex.pm
+      env:
+        HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        echo "Publishing version $TAG_VERSION to Hex.pm"
+        mix hex.publish --yes
+
+  notify-discord:
+    name: Discord Notification
+    runs-on: ubuntu-22.04
+    needs: [validate-and-test, publish]
+    if: always()
+    steps:
+    - name: Send success notification
+      if: ${{ needs.publish.result == 'success' }}
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      uses: Ilshidur/action-discord@master
+      with:
+        args: |
+          🎉 **New Release Published** - TailwindPort ${GITHUB_REF#refs/tags/v}
+          
+          📦 **Package:** https://hex.pm/packages/tailwind_port
+          📚 **Documentation:** https://hexdocs.pm/tailwind_port/${GITHUB_REF#refs/tags/v}
+          🏷️ **GitHub Release:** ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+          
+          **Installation:**
+          ```elixir
+          def deps do
+            [
+              {:tailwind_port, "~> ${GITHUB_REF#refs/tags/v}"}
+            ]
+          end
+          ```
+          
+          Ready for production use! 🚀
+
+    - name: Send failure notification
+      if: ${{ needs.validate-and-test.result == 'failure' || needs.publish.result == 'failure' }}
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      uses: Ilshidur/action-discord@master
+      with:
+        args: |
+          ❌ **Release Failed** - TailwindPort ${GITHUB_REF#refs/tags/v}
+          
+          **Failed Jobs:**
+          ${{ needs.validate-and-test.result == 'failure' && '❌ Tests/Validation' || '✅ Tests/Validation' }}
+          ${{ needs.publish.result == 'failure' && '❌ Hex.pm Publish' || '✅ Hex.pm Publish' }}
+          
+          Please check the workflow logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
