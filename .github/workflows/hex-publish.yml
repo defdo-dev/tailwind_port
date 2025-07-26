@@ -28,7 +28,14 @@ jobs:
     
     - name: Validate version in mix.exs
       run: |
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        # Extract version from tag, handling both v-prefixed and non-prefixed tags
+        TAG_REF=${GITHUB_REF#refs/tags/}
+        if [[ $TAG_REF == v* ]]; then
+          TAG_VERSION=${TAG_REF#v}
+        else
+          TAG_VERSION=$TAG_REF
+        fi
+        
         MIX_VERSION=$(grep -o 'version: "[^"]*"' mix.exs | cut -d'"' -f2)
         
         if [ "$TAG_VERSION" != "$MIX_VERSION" ]; then
@@ -96,7 +103,13 @@ jobs:
       env:
         HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
       run: |
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        # Extract version from tag, handling both v-prefixed and non-prefixed tags
+        TAG_REF=${GITHUB_REF#refs/tags/}
+        if [[ $TAG_REF == v* ]]; then
+          TAG_VERSION=${TAG_REF#v}
+        else
+          TAG_VERSION=$TAG_REF
+        fi
         echo "Publishing version $TAG_VERSION to Hex.pm"
         mix hex.publish --yes
 
@@ -113,17 +126,17 @@ jobs:
       uses: Ilshidur/action-discord@master
       with:
         args: |
-          🎉 **New Release Published** - TailwindPort ${GITHUB_REF#refs/tags/v}
+          🎉 **New Release Published** - TailwindPort ${{ github.ref_name }}
           
           📦 **Package:** https://hex.pm/packages/tailwind_port
-          📚 **Documentation:** https://hexdocs.pm/tailwind_port/${GITHUB_REF#refs/tags/v}
+          📚 **Documentation:** https://hexdocs.pm/tailwind_port/${{ github.ref_name }}
           🏷️ **GitHub Release:** ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
           
           **Installation:**
           ```elixir
           def deps do
             [
-              {:tailwind_port, "~> ${GITHUB_REF#refs/tags/v}"}
+              {:tailwind_port, "~> ${{ github.ref_name }}"}
             ]
           end
           ```
@@ -137,7 +150,7 @@ jobs:
       uses: Ilshidur/action-discord@master
       with:
         args: |
-          ❌ **Release Failed** - TailwindPort ${GITHUB_REF#refs/tags/v}
+          ❌ **Release Failed** - TailwindPort ${{ github.ref_name }}
           
           **Failed Jobs:**
           ${{ needs.validate-and-test.result == 'failure' && '❌ Tests/Validation' || '✅ Tests/Validation' }}
