@@ -82,8 +82,8 @@ defmodule Defdo.TailwindPort.ProjectSetupTest do
 
     test "handles permission errors gracefully" do
       # Create a directory we can't write to (simulate permission error)
-      # This test might not work on all systems, so we'll make it conditional
-      if :os.type() == {:unix, :linux} do
+      # This test might not work on all systems or when running as root in CI, so we'll make it conditional
+      if :os.type() == {:unix, :linux} and System.get_env("CI") != "true" do
         File.mkdir_p("readonly_parent")
         # Read-only
         File.chmod("readonly_parent", 0o444)
@@ -98,7 +98,7 @@ defmodule Defdo.TailwindPort.ProjectSetupTest do
         File.chmod("readonly_parent", 0o755)
         File.rm_rf("readonly_parent")
       else
-        # On other systems, just test the success case
+        # On other systems or in CI, just test the success case
         assert :ok = ProjectSetup.ensure_assets_directory()
       end
     end
