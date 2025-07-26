@@ -125,7 +125,7 @@ defmodule Defdo.TailwindPort.TelemetryTest do
     test "emits performance event with duration" do
       Telemetry.track_compilation_performance(1250, %{
         input_size: 2048,
-        output_size: 15360,
+        output_size: 15_360,
         project_id: "perf_test"
       })
 
@@ -133,7 +133,7 @@ defmodule Defdo.TailwindPort.TelemetryTest do
       assert measurements.duration_ms == 1250
       assert measurements.compile_count == 1
       assert measurements.input_size == 2048
-      assert measurements.output_size == 15360
+      assert measurements.output_size == 15_360
       assert metadata.project_id == "perf_test"
     end
 

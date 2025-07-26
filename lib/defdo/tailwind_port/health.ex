@@ -143,7 +143,7 @@ defmodule Defdo.TailwindPort.Health do
       |> Map.update!(:total_outputs, &(&1 + 1))
 
     # Increment CSS builds if this looks like a CSS-related output
-    if is_css_related_output?(data) do
+    if css_related_output?(data) do
       Map.update!(updated_health, :css_builds, &(&1 + 1))
     else
       updated_health
@@ -239,7 +239,7 @@ defmodule Defdo.TailwindPort.Health do
 
     Map.merge(health, %{
       uptime_seconds: (current_time - health.created_at) / 1_000_000_000,
-      port_active: is_port_active?(state),
+      port_active: port_active?(state),
       port_ready: Map.get(state, :port_ready, false),
       last_activity_seconds_ago: (current_time - health.last_activity) / 1_000_000_000
     })
@@ -320,7 +320,7 @@ defmodule Defdo.TailwindPort.Health do
 
   # Private helper functions
 
-  defp is_css_related_output?(data) do
+  defp css_related_output?(data) do
     String.contains?(data, "{") or
       String.contains?(data, "}") or
       String.contains?(data, "Done") or
@@ -330,7 +330,7 @@ defmodule Defdo.TailwindPort.Health do
       String.contains?(data, "Watching")
   end
 
-  defp is_port_active?(state) do
+  defp port_active?(state) do
     port = Map.get(state, :port)
     not is_nil(port) and not is_nil(Port.info(port))
   end

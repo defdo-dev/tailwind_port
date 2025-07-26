@@ -249,7 +249,7 @@ defmodule Defdo.TailwindPort do
       end
 
       # sometime we should download the tailwind binary in that case we will increase the timeout.
-      timeout = if Keyword.has_key?(args, :cmd), do: 5000, else: 60000
+      timeout = if Keyword.has_key?(args, :cmd), do: 5000, else: 60_000
 
       try do
         case GenServer.call(name, {:new, args}, timeout) do
@@ -422,7 +422,7 @@ defmodule Defdo.TailwindPort do
 
   """
   @spec wait_until_ready(GenServer.name(), timeout()) :: :ok | {:error, :timeout}
-  def wait_until_ready(name \\ __MODULE__, timeout \\ 10000) do
+  def wait_until_ready(name \\ __MODULE__, timeout \\ 10_000) do
     try do
       GenServer.call(name, :wait_until_ready, timeout)
     catch

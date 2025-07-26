@@ -91,13 +91,13 @@ defmodule Defdo.TailwindPort.ConfigTest do
   test "get_effective_config parses options" do
     opts = [
       opts: ["-i", "input.css", "-o", "output.css", "--content", "*.html,*.js", "-w", "-m"],
-      timeout: 10000,
+      timeout: 10_000,
       retry_count: 5
     ]
 
     config = Config.get_effective_config(opts)
 
-    assert config.timeout == 10000
+    assert config.timeout == 10_000
     assert config.retry_count == 5
     assert config.watch_mode == true
     assert config.minify == true
