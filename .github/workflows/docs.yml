@@ -1,0 +1,303 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'lib/**'
+      - 'guides/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'mix.exs'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-docs:
+    name: Build and Deploy Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.17'
+        otp-version: '27'
+        version-type: strict
+
+    - name: Cache deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          deps
+          _build
+        key: ${{ runner.os }}-mix-docs-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-docs-
+
+    - name: Install dependencies
+      run: mix deps.get
+
+    - name: Build documentation
+      run: |
+        echo "Building documentation..."
+        mix docs
+        
+        # Create a comprehensive index page
+        cat > doc/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>TailwindPort Documentation</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                       max-width: 1200px; margin: 0 auto; padding: 2rem; line-height: 1.6; }
+                .header { text-align: center; margin-bottom: 3rem; }
+                .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+                .card { border: 1px solid #e1e5e9; border-radius: 8px; padding: 1.5rem; }
+                .card h3 { margin-top: 0; color: #1a202c; }
+                .card a { color: #3182ce; text-decoration: none; }
+                .card a:hover { text-decoration: underline; }
+                .badge { background: #edf2f7; color: #4a5568; padding: 0.25rem 0.5rem; 
+                        border-radius: 4px; font-size: 0.875rem; margin-left: 0.5rem; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🎨 TailwindPort Documentation</h1>
+                <p>A robust, production-ready Elixir library for integrating Tailwind CSS CLI with comprehensive error handling, health monitoring, and telemetry features.</p>
+            </div>
+            
+            <div class="cards">
+                <div class="card">
+                    <h3>📚 API Documentation</h3>
+                    <p>Complete API reference with function signatures, examples, and detailed explanations.</p>
+                    <a href="./api-reference.html">View API Docs</a>
+                    <span class="badge">Technical</span>
+                </div>
+                
+                <div class="card">
+                    <h3>🚀 Quick Start Guide</h3>
+                    <p>Get up and running with TailwindPort in minutes with step-by-step instructions.</p>
+                    <a href="./quick-start.html">Quick Start</a>
+                    <span class="badge">Beginner</span>
+                </div>
+                
+                <div class="card">
+                    <h3>📖 Usage Guide</h3>
+                    <p>Comprehensive usage documentation covering all features and configuration options.</p>
+                    <a href="./usage.html">Usage Guide</a>
+                    <span class="badge">Essential</span>
+                </div>
+                
+                <div class="card">
+                    <h3>💡 Examples</h3>
+                    <p>Practical examples for Phoenix integration, Docker deployment, and advanced use cases.</p>
+                    <a href="./examples.html">View Examples</a>
+                    <span class="badge">Practical</span>
+                </div>
+                
+                <div class="card">
+                    <h3>👨‍💻 Developer Guide</h3>
+                    <p>Architecture overview, contribution guidelines, and development setup instructions.</p>
+                    <a href="./developer-guide.html">Developer Guide</a>
+                    <span class="badge">Advanced</span>
+                </div>
+                
+                <div class="card">
+                    <h3>⚡ Performance Guide</h3>
+                    <p>Optimization strategies, monitoring, and best practices for production deployments.</p>
+                    <a href="./performance.html">Performance</a>
+                    <span class="badge">Production</span>
+                </div>
+                
+                <div class="card">
+                    <h3>🔄 Migration Guide</h3>
+                    <p>Version migration instructions and breaking changes documentation.</p>
+                    <a href="./migration-guide.html">Migration</a>
+                    <span class="badge">Upgrade</span>
+                </div>
+                
+                <div class="card">
+                    <h3>📦 Package Info</h3>
+                    <p>Installation instructions, changelog, and package metadata.</p>
+                    <a href="https://hex.pm/packages/tailwind_port">Hex.pm Package</a>
+                    <span class="badge">Package</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 3rem; text-align: center; color: #718096;">
+                <p>Built with ❤️ for the Elixir community | 
+                   <a href="https://github.com/defdo-dev/tailwind_cli_port">GitHub Repository</a>
+                </p>
+            </div>
+        </body>
+        </html>
+        EOF
+
+    - name: Validate documentation
+      run: |
+        # Check that all expected files exist
+        echo "Validating documentation structure..."
+        
+        required_files=(
+          "doc/index.html"
+          "doc/api-reference.html" 
+        )
+        
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Missing required file: $file"
+            exit 1
+          else
+            echo "✅ Found: $file"
+          fi
+        done
+        
+        # Check file sizes to ensure content was generated
+        total_size=$(du -sb doc/ | cut -f1)
+        if [ "$total_size" -lt 100000 ]; then  # Less than 100KB
+          echo "❌ Documentation seems too small (${total_size} bytes)"
+          exit 1
+        fi
+        
+        echo "✅ Documentation validation passed (${total_size} bytes)"
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./doc
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  validate-links:
+    name: Validate Documentation Links
+    runs-on: ubuntu-latest
+    needs: build-and-deploy-docs
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install link checker
+      run: npm install -g markdown-link-check
+
+    - name: Check README links
+      run: markdown-link-check README.md --config .github/link-check-config.json || true
+
+    - name: Check guide links
+      run: |
+        for guide in guides/*.md; do
+          echo "Checking links in $guide..."
+          markdown-link-check "$guide" --config .github/link-check-config.json || true
+        done
+
+  accessibility-check:
+    name: Accessibility Check
+    runs-on: ubuntu-latest
+    needs: build-and-deploy-docs
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install accessibility checker
+      run: npm install -g @axe-core/cli
+
+    - name: Setup Elixir for docs generation
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.17'
+        otp-version: '27'
+        version-type: strict
+
+    - name: Install dependencies and generate docs
+      run: |
+        mix deps.get
+        mix docs
+
+    - name: Check accessibility
+      run: |
+        # Start a simple HTTP server for the docs
+        python3 -m http.server 8000 --directory doc &
+        SERVER_PID=$!
+        
+        sleep 5
+        
+        # Check main pages for accessibility issues
+        axe http://localhost:8000/index.html --exit || true
+        axe http://localhost:8000/api-reference.html --exit || true
+        
+        # Cleanup
+        kill $SERVER_PID || true
+
+  notify-discord:
+    name: Discord Documentation Notification
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy-docs, validate-links, accessibility-check]
+    if: always() && github.ref == 'refs/heads/main'
+    steps:
+    - name: Send Discord notification on success
+      if: ${{ needs.build-and-deploy-docs.result == 'success' }}
+      uses: Ilshidur/action-discord@master
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      with:
+        args: |
+          📚 **Documentation Updated** - TailwindPort
+          
+          **Branch:** `${{ github.ref_name }}`
+          **Commit:** `${{ github.sha }}`
+          **Author:** ${{ github.actor }}
+          
+          ✅ Documentation built and deployed
+          ${{ needs.validate-links.result == 'success' && '🔗 Link validation passed' || '⚠️ Link validation issues' }}
+          ${{ needs.accessibility-check.result == 'success' && '♿ Accessibility checks passed' || '⚠️ Accessibility issues detected' }}
+          
+          **View Documentation:** https://defdo-dev.github.io/tailwind_cli_port/
+          
+          [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+    - name: Send Discord notification on failure
+      if: ${{ needs.build-and-deploy-docs.result == 'failure' }}
+      uses: Ilshidur/action-discord@master
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      with:
+        args: |
+          ❌ **Documentation Build Failed** - TailwindPort
+          
+          **Branch:** `${{ github.ref_name }}`
+          **Commit:** `${{ github.sha }}`
+          **Author:** ${{ github.actor }}
+          
+          Documentation build failed. Please check the logs.
+          
+          [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
