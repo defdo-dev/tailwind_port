@@ -4,7 +4,7 @@ Welcome to TailwindPort! This guide will help you integrate Tailwind CSS into yo
 
 ## 📋 Prerequisites
 
-- Elixir 1.15 or higher
+- Elixir 1.16 or higher
 - Mix (included with Elixir)
 - Internet access (to download the Tailwind CSS binary)
 

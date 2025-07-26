@@ -14,7 +14,7 @@ on:
 jobs:
   build-and-deploy-docs:
     name: Build and Deploy Documentation
-    runs-on: ubuntu-latest
+    runs-on: n100
     permissions:
       contents: read
       pages: write
@@ -35,7 +35,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -191,7 +191,7 @@ jobs:
 
   validate-links:
     name: Validate Documentation Links
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: build-and-deploy-docs
     steps:
     - name: Checkout code
@@ -217,7 +217,7 @@ jobs:
 
   accessibility-check:
     name: Accessibility Check
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: build-and-deploy-docs
     steps:
     - name: Checkout code
@@ -236,7 +236,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Install dependencies and generate docs
       run: |
@@ -260,7 +260,7 @@ jobs:
 
   notify-discord:
     name: Discord Documentation Notification
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [build-and-deploy-docs, validate-links, accessibility-check]
     if: always() && github.ref == 'refs/heads/main'
     steps:

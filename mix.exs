@@ -8,7 +8,7 @@ defmodule TailwindPort.MixProject do
     [
       app: :tailwind_port,
       version: "0.2.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],

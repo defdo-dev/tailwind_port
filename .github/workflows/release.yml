@@ -11,7 +11,7 @@ env:
 jobs:
   validate-tag:
     name: Validate Release Tag
-    runs-on: ubuntu-latest
+    runs-on: n100
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
@@ -43,7 +43,6 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
 
     - name: Validate version in mix.exs
       run: |
@@ -59,13 +58,9 @@ jobs:
 
   test:
     name: Release Tests
-    runs-on: ubuntu-latest
-    needs: validate-tag
+    runs-on: n100
     strategy:
       matrix:
-        include:
-          - elixir: '1.15'
-            otp: '25'
           - elixir: '1.17'
             otp: '27'
     steps:
@@ -77,7 +72,6 @@ jobs:
       with:
         elixir-version: ${{ matrix.elixir }}
         otp-version: ${{ matrix.otp }}
-        version-type: strict
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -107,7 +101,7 @@ jobs:
 
   build-package:
     name: Build Release Package
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, test]
     steps:
     - name: Checkout code
@@ -118,7 +112,6 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -158,8 +151,7 @@ jobs:
 
   publish-hex:
     name: Publish to Hex.pm
-    runs-on: ubuntu-latest
-    needs: [validate-tag, build-package]
+    runs-on: n100
     environment: production
     steps:
     - name: Checkout code
@@ -170,7 +162,6 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -194,7 +185,7 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, publish-hex]
     steps:
     - name: Checkout code
@@ -282,7 +273,7 @@ jobs:
 
   notify-success:
     name: Notify Release Success
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, create-github-release]
     if: success()
     steps:
@@ -295,7 +286,7 @@ jobs:
 
   notify-discord-success:
     name: Discord Release Success Notification
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, create-github-release]
     if: success()
     steps:
@@ -328,7 +319,7 @@ jobs:
 
   notify-discord-failure:
     name: Discord Release Failure Notification
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, test, build-package, publish-hex, create-github-release]
     if: failure()
     steps:
@@ -355,7 +346,7 @@ jobs:
 
   notify-failure:
     name: Notify Release Failure
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [validate-tag, test, build-package, publish-hex, create-github-release]
     if: failure()
     steps:

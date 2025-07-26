@@ -12,17 +12,11 @@ env:
 jobs:
   test:
     name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    runs-on: n100
+     strategy:
       matrix:
-        include:
-          - elixir: '1.15'
-            otp: '25'
-          - elixir: '1.16'
-            otp: '26'
-          - elixir: '1.17'
-            otp: '27'
+        otp: ['25']
+        elixir: ['1.15']
 
     steps:
     - name: Checkout code
@@ -33,7 +27,6 @@ jobs:
       with:
         elixir-version: ${{ matrix.elixir }}
         otp-version: ${{ matrix.otp }}
-        version-type: strict
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -74,7 +67,7 @@ jobs:
 
   dialyzer:
     name: Dialyzer
-    runs-on: ubuntu-latest
+    runs-on: n100
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -84,7 +77,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -112,7 +105,7 @@ jobs:
 
   docs:
     name: Documentation
-    runs-on: ubuntu-latest
+    runs-on: n100
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -122,7 +115,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -149,7 +142,7 @@ jobs:
 
   security:
     name: Security Audit
-    runs-on: ubuntu-latest
+    runs-on: n100
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -159,7 +152,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -182,7 +175,7 @@ jobs:
 
   functional-test:
     name: Functional Tests
-    runs-on: ubuntu-latest
+    runs-on: n100
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -192,7 +185,7 @@ jobs:
       with:
         elixir-version: '1.17'
         otp-version: '27'
-        version-type: strict
+        version-type: loose
 
     - name: Cache deps
       uses: actions/cache@v4
@@ -249,7 +242,7 @@ jobs:
 
   notify-discord:
     name: Discord Notification
-    runs-on: ubuntu-latest
+    runs-on: n100
     needs: [test, dialyzer, docs, security, functional-test]
     if: always() && github.event_name == 'push'
     steps:

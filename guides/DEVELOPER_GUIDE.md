@@ -47,8 +47,8 @@ TailwindPort is a production-ready Elixir library that provides a robust interfa
 
 ### Prerequisites
 
-- Elixir 1.15 or later
-- Erlang/OTP 25 or later
+- Elixir 1.16 or later
+- Erlang/OTP 26 or later
 - Node.js (for Tailwind CSS CLI)
 
 ### Quick Installation

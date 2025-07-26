@@ -29,8 +29,8 @@ This project adheres to a code of conduct that promotes a welcoming and inclusiv
 
 ### Prerequisites
 
-- Elixir 1.15+ 
-- Erlang/OTP 25+
+- Elixir 1.16+ 
+- Erlang/OTP 26+
 - Git
 - GitHub account
 
