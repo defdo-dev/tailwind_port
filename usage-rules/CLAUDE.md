@@ -13,8 +13,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing
 - Tests are located in the `test/` directory
-- Test helper is at `test/test_helper.exs`
+- Test helper is at `test/test_helper.exs` (configures faster retries and suppresses logs for testing)
 - Uses ExUnit testing framework
+- `mix test --failed` - Run only previously failed tests
+- `mix test test/path/to/specific_test.exs` - Run a specific test file
+- Coverage: `mix coveralls` or `mix coveralls.html` for HTML reports
+
+### Code Quality
+- `mix format` - Format code according to `.formatter.exs` configuration
+- `mix credo` - Static code analysis and style checking
+- `mix dialyzer` - Type checking with Dialyxir
+- `mix docs` - Generate HTML documentation from @doc attributes
 
 ## Architecture Overview
 
@@ -23,7 +32,9 @@ This is an Elixir library (`tailwind_port`) that provides a GenServer-based inte
 ### Core Components
 
 **Main Modules:**
-- `Defdo.TailwindPort` (`lib/defdo/tailwind_port.ex`) - Main GenServer that manages Elixir ports to communicate with the Tailwind CSS CLI binary
+- `Defdo.TailwindPort` (`lib/defdo/tailwind_port.ex`) - High-level API that delegates to Pool for intelligent port pooling
+- `Defdo.TailwindPort.Pool` (`lib/defdo/tailwind_port/pool.ex`) - Pooled implementation with resource management and port reuse
+- `Defdo.TailwindPort.Standalone` (`lib/defdo/tailwind_port/standalone.ex`) - Legacy single-port GenServer interface
 - `Defdo.TailwindDownload` (`lib/defdo/tailwind_download.ex`) - Handles downloading and installing the Tailwind CSS binary for different platforms
 - `Defdo.TailwindPort.FS` (`lib/defdo/tailwind_port/fs.ex`) - Manages filesystem operations and temporary directory structures
 - `TailwindPort.Application` (`lib/application.ex`) - OTP application that starts a DynamicSupervisor for managing multiple TailwindPort instances
@@ -109,3 +120,30 @@ The library is designed to integrate Tailwind CSS build processes into Elixir ap
 - Binary verification during download
 - Better error reporting and validation
 - Improved proxy and certificate handling
+
+## Development Guidelines
+
+### Elixir-Specific Rules
+- **Never** use map access syntax (`my_struct[:field]`) on structs - use direct field access (`my_struct.field`) instead
+- **Never** use `String.to_atom/1` on user input (memory leak risk)
+- Predicate function names should end with `?` and not start with `is_` (e.g., `ready?/2` not `is_ready/2`)
+- When rebinding variables in block expressions (`if`, `case`, `cond`), bind the result of the entire expression:
+  ```elixir
+  # GOOD
+  socket = if connected?(socket), do: assign(socket, :val, val), else: socket
+
+  # BAD - rebinding inside the block
+  if connected?(socket) do
+    socket = assign(socket, :val, val)  # This doesn't work as expected
+  end
+  ```
+
+### Module Organization
+- **Never** nest multiple modules in the same file (causes cyclic dependencies)
+- Each module should have its own file following the standard `lib/` directory structure
+- Support modules are organized under `lib/defdo/tailwind_port/` namespace
+
+### OTP Patterns
+- Uses `DynamicSupervisor` for managing multiple TailwindPort instances dynamically
+- Processes are configured as `:transient` restart strategy
+- Proper supervision tree with `TailwindPort.Application` as root supervisor

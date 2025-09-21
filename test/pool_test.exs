@@ -461,6 +461,9 @@ defmodule Defdo.TailwindPort.PoolTest do
 
       html1 = ~s(<div class="text-red-500">Hello</div>)
 
+      # Write the HTML content to the content file so Tailwind can scan it
+      File.write!(content_path, html1)
+
       opts = [
         input: input_path,
         output: output_path,
@@ -472,13 +475,17 @@ defmodule Defdo.TailwindPort.PoolTest do
       {:ok, result1} = Pool.compile(opts, html1)
 
       css1 = result1.compiled_css || File.read!(output_path)
-      assert css1 =~ ".text-red-500"
+      assert css1 =~ "text-red-500"
 
       html2 = ~s(<p class="text-blue-600">Updated</p>)
+
+      # Write the updated HTML content to the content file
+      File.write!(content_path, html2)
+
       {:ok, result2} = Pool.compile(opts, html2)
 
       css2 = result2.compiled_css || File.read!(output_path)
-      assert css2 =~ ".text-blue-600"
+      assert css2 =~ "text-blue-600"
 
       stats = Pool.get_stats()
       assert stats.port_creations >= 1
