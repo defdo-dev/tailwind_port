@@ -12,7 +12,7 @@ by adding `tailwind_port` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:tailwind_port, "~> 0.2.0", organization: "defdo"}
+    {:tailwind_port, "~> 0.3.0", organization: "defdo"}
   ]
 end
 ```

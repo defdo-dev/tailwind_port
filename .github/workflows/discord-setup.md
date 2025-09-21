@@ -89,7 +89,7 @@ Installation:
 ```elixir
 def deps do
   [
-    {:tailwind_port, "~> 0.2.0"}
+    {:tailwind_port, "~> 0.3.0"}
   ]
 end
 ```

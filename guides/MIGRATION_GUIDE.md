@@ -218,7 +218,7 @@ Update your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:tailwind_port, "~> 0.2.0", organization: "defdo"}
+    {:tailwind_port, "~> 0.3.0", organization: "defdo"}
   ]
 end
 ```
