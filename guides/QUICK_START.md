@@ -17,7 +17,7 @@ Add `tailwind_port` to your `mix.exs` file:
 ```elixir
 def deps do
   [
-    {:tailwind_port, "~> 0.2.0", organization: "defdo"}
+    {:tailwind_port, "~> 0.3.0", organization: "defdo"}
   ]
 end
 ```

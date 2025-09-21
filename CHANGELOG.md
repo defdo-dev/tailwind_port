@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-02-??
+
+### 🚀 Breaking Changes
+- The pooled Tailwind manager is now the primary `Defdo.TailwindPort` API
+- The original single-port GenServer lives on as `Defdo.TailwindPort.Standalone`
+- Telemetry prefixes migrate from `tailwind_port_optimized` to `tailwind_port_pool`
+
+### ✨ Added
+- `Defdo.TailwindPort.Pool` with real pooled compilation, filesystem wiring, and graceful degradation
+- `Defdo.TailwindPort.PoolTelemetry` and `Defdo.TailwindPort.Metrics` for ready-to-export KPI gauges
+- Real Tailwind integration test that validates HTML→CSS reuse against the CLI
+
+### 🔄 Updated
+- README and guides now showcase the pooled API while documenting `Standalone`
+- All tests and examples use the new naming (`Pool`/`Standalone`)
+- Added `telemetry_metrics` dependency for easy Prometheus/StatsD integration
+
+
 ## [0.2.0] - 2025-01-27
 
 ### ⚡ Major Improvements
