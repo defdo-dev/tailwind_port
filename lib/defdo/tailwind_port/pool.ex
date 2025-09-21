@@ -117,6 +117,18 @@ defmodule Defdo.TailwindPort.Pool do
     {:ok, state}
   end
 
+  defp process_operation_group(config_hash, ops, acc_results, acc_state) do
+    case find_or_create_port(config_hash, hd(ops).opts, acc_state) do
+      {:ok, port_info, new_state} ->
+        {batch_results, batch_state} = execute_batch_compilation(port_info, ops, new_state)
+        {acc_results ++ batch_results, batch_state}
+
+      {:error, _reason} ->
+        error_results = Enum.map(ops, fn op -> {:error, :port_unavailable, op.id} end)
+        {acc_results ++ error_results, acc_state}
+    end
+  end
+
   @impl true
   def handle_call({:compile, operation}, _from, state) do
     start_time = System.monotonic_time(:microsecond)
@@ -224,18 +236,6 @@ defmodule Defdo.TailwindPort.Pool do
 
     updated_stats = update_stats(final_state.stats, :batch_compile, length(operations))
     {:reply, {:ok, results}, %{final_state | stats: updated_stats}}
-  end
-
-  defp process_operation_group(config_hash, ops, acc_results, acc_state) do
-    case find_or_create_port(config_hash, hd(ops).opts, acc_state) do
-      {:ok, port_info, new_state} ->
-        {batch_results, batch_state} = execute_batch_compilation(port_info, ops, new_state)
-        {acc_results ++ batch_results, batch_state}
-
-      {:error, _reason} ->
-        error_results = Enum.map(ops, fn op -> {:error, :port_unavailable, op.id} end)
-        {acc_results ++ error_results, acc_state}
-    end
   end
 
   @impl true

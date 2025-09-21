@@ -485,6 +485,7 @@ defmodule Defdo.TailwindPort.PoolTest do
       case version do
         :v3 ->
           input = "@tailwind utilities;\n"
+
           config = """
           module.exports = {
             content: ["#{content_path}"],
@@ -492,16 +493,19 @@ defmodule Defdo.TailwindPort.PoolTest do
             corePlugins: { preflight: false }
           }
           """
+
           {input, config}
 
         :v4 ->
           input = "@import \"tailwindcss\";\n"
+
           config = """
           export default {
             content: ["#{content_path}"],
             theme: { extend: {} }
           }
           """
+
           {input, config}
       end
     end
@@ -541,6 +545,7 @@ defmodule Defdo.TailwindPort.PoolTest do
     defp handle_version_fallback(:v4, false = _has_classes, _css1, paths, html1, _opts) do
       # For v4 tests, if the initial attempt failed, try v3 syntax
       File.write!(paths.input_path, "@tailwind utilities;\n")
+
       File.write!(paths.config_path, """
       module.exports = {
         content: ["#{paths.content_path}"],
@@ -559,8 +564,10 @@ defmodule Defdo.TailwindPort.PoolTest do
 
       {:ok, result1_fallback} = Pool.compile(opts_fallback, html1)
       fallback_css = result1_fallback.compiled_css || File.read!(paths.output_path)
-      fallback_has_classes = fallback_css =~ ~r/\.[a-z-]+\s*\{/ or
-                            fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
+
+      fallback_has_classes =
+        fallback_css =~ ~r/\.[a-z-]+\s*\{/ or
+          fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
 
       {fallback_css, fallback_has_classes, opts_fallback}
     end
@@ -579,6 +586,7 @@ defmodule Defdo.TailwindPort.PoolTest do
       assert String.length(css2) > 10, "Expected CSS output on second compile for #{version}"
 
       has_classes2 = css2 =~ ~r/\.[a-z-]+\s*\{/ or css2 =~ ~r/\.(block|flex|grid|visible|static)/
+
       assert has_classes2,
              "Expected CSS class definitions in second #{version} output: #{inspect(css2)}"
     end
