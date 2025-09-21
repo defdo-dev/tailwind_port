@@ -460,28 +460,33 @@ defmodule Defdo.TailwindPort.PoolTest do
       config_path = Path.join(tmp_dir, "tailwind.config.js")
 
       # Setup files based on Tailwind version
-      {input_content, config_content} = case version do
-        :v3 ->
-          input = "@tailwind utilities;\n"
-          config = """
-          module.exports = {
-            content: ["#{content_path}"],
-            theme: { extend: {} },
-            corePlugins: { preflight: false }
-          }
-          """
-          {input, config}
+      {input_content, config_content} =
+        case version do
+          :v3 ->
+            input = "@tailwind utilities;\n"
 
-        :v4 ->
-          input = "@import \"tailwindcss\";\n"
-          config = """
-          export default {
-            content: ["#{content_path}"],
-            theme: { extend: {} }
-          }
-          """
-          {input, config}
-      end
+            config = """
+            module.exports = {
+              content: ["#{content_path}"],
+              theme: { extend: {} },
+              corePlugins: { preflight: false }
+            }
+            """
+
+            {input, config}
+
+          :v4 ->
+            input = "@import \"tailwindcss\";\n"
+
+            config = """
+            export default {
+              content: ["#{content_path}"],
+              theme: { extend: {} }
+            }
+            """
+
+            {input, config}
+        end
 
       File.write!(input_path, input_content)
       File.write!(config_path, config_content)
@@ -508,55 +513,63 @@ defmodule Defdo.TailwindPort.PoolTest do
       has_classes = css1 =~ ~r/\.[a-z-]+\s*\{/ or css1 =~ ~r/\.(block|flex|grid|visible|static)/
 
       # Handle version compatibility: if v4 syntax doesn't work, use v3 fallback
-      {final_css, final_has_classes} = if version == :v4 and not has_classes do
-        # For v4 tests, if the initial attempt failed, try v3 syntax
-        # This ensures the test passes regardless of binary version
-        File.write!(input_path, "@tailwind utilities;\n")
-        File.write!(config_path, """
-        module.exports = {
-          content: ["#{content_path}"],
-          theme: { extend: {} },
-          corePlugins: { preflight: false }
-        }
-        """)
+      {final_css, final_has_classes} =
+        if version == :v4 and not has_classes do
+          # For v4 tests, if the initial attempt failed, try v3 syntax
+          # This ensures the test passes regardless of binary version
+          File.write!(input_path, "@tailwind utilities;\n")
 
-        # Use different options to avoid caching issues
-        opts_fallback = [
-          input: input_path,
-          output: output_path,
-          content: content_path,
-          config: config_path,
-          watch: false  # Try without watch to avoid caching
-        ]
+          File.write!(config_path, """
+          module.exports = {
+            content: ["#{content_path}"],
+            theme: { extend: {} },
+            corePlugins: { preflight: false }
+          }
+          """)
 
-        {:ok, result1_fallback} = Pool.compile(opts_fallback, html1)
-        fallback_css = result1_fallback.compiled_css || File.read!(output_path)
-        fallback_has_classes = fallback_css =~ ~r/\.[a-z-]+\s*\{/ or fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
+          # Use different options to avoid caching issues
+          opts_fallback = [
+            input: input_path,
+            output: output_path,
+            content: content_path,
+            config: config_path,
+            # Try without watch to avoid caching
+            watch: false
+          ]
 
-        {fallback_css, fallback_has_classes}
-      else
-        {css1, has_classes}
-      end
+          {:ok, result1_fallback} = Pool.compile(opts_fallback, html1)
+          fallback_css = result1_fallback.compiled_css || File.read!(output_path)
 
-      assert final_has_classes, "Expected CSS class definitions in #{version} output (with fallback if needed): #{inspect(final_css)}"
+          fallback_has_classes =
+            fallback_css =~ ~r/\.[a-z-]+\s*\{/ or
+              fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
+
+          {fallback_css, fallback_has_classes}
+        else
+          {css1, has_classes}
+        end
+
+      assert final_has_classes,
+             "Expected CSS class definitions in #{version} output (with fallback if needed): #{inspect(final_css)}"
 
       # Test with second HTML content to verify port reuse
       html2 = ~s(<p class="flex text-blue-600">Updated</p>)
       File.write!(content_path, html2)
 
       # Use the same configuration that worked for the first compile
-      compile_opts = if version == :v4 and not has_classes do
-        # If we used v3 fallback, continue with v3 syntax
-        [
-          input: input_path,
-          output: output_path,
-          content: content_path,
-          config: config_path,
-          watch: false
-        ]
-      else
-        opts
-      end
+      compile_opts =
+        if version == :v4 and not has_classes do
+          # If we used v3 fallback, continue with v3 syntax
+          [
+            input: input_path,
+            output: output_path,
+            content: content_path,
+            config: config_path,
+            watch: false
+          ]
+        else
+          opts
+        end
 
       {:ok, result2} = Pool.compile(compile_opts, html2)
       css2 = result2.compiled_css || File.read!(output_path)
@@ -565,7 +578,9 @@ defmodule Defdo.TailwindPort.PoolTest do
 
       # Verify that CSS compilation is working
       has_classes2 = css2 =~ ~r/\.[a-z-]+\s*\{/ or css2 =~ ~r/\.(block|flex|grid|visible|static)/
-      assert has_classes2, "Expected CSS class definitions in second #{version} output: #{inspect(css2)}"
+
+      assert has_classes2,
+             "Expected CSS class definitions in second #{version} output: #{inspect(css2)}"
 
       # Verify pool statistics
       stats = Pool.get_stats()
