@@ -219,19 +219,23 @@ defmodule Defdo.TailwindPort.Pool do
 
     {results, final_state} =
       Enum.reduce(grouped_ops, {[], state}, fn {config_hash, ops}, {acc_results, acc_state} ->
-        case find_or_create_port(config_hash, hd(ops).opts, acc_state) do
-          {:ok, port_info, new_state} ->
-            {batch_results, batch_state} = execute_batch_compilation(port_info, ops, new_state)
-            {acc_results ++ batch_results, batch_state}
-
-          {:error, _reason} ->
-            error_results = Enum.map(ops, fn op -> {:error, :port_unavailable, op.id} end)
-            {acc_results ++ error_results, acc_state}
-        end
+        process_operation_group(config_hash, ops, acc_results, acc_state)
       end)
 
     updated_stats = update_stats(final_state.stats, :batch_compile, length(operations))
     {:reply, {:ok, results}, %{final_state | stats: updated_stats}}
+  end
+
+  defp process_operation_group(config_hash, ops, acc_results, acc_state) do
+    case find_or_create_port(config_hash, hd(ops).opts, acc_state) do
+      {:ok, port_info, new_state} ->
+        {batch_results, batch_state} = execute_batch_compilation(port_info, ops, new_state)
+        {acc_results ++ batch_results, batch_state}
+
+      {:error, _reason} ->
+        error_results = Enum.map(ops, fn op -> {:error, :port_unavailable, op.id} end)
+        {acc_results ++ error_results, acc_state}
+    end
   end
 
   @impl true
@@ -268,12 +272,10 @@ defmodule Defdo.TailwindPort.Pool do
     baseline_ms = state.options[:baseline_compilation_time_ms]
 
     compilation_time_improvement =
-      cond do
-        is_number(baseline_ms) and baseline_ms > 0 and average_compilation_time_ms > 0 ->
-          (baseline_ms - average_compilation_time_ms) / baseline_ms
-
-        true ->
-          nil
+      if is_number(baseline_ms) and baseline_ms > 0 and average_compilation_time_ms > 0 do
+        (baseline_ms - average_compilation_time_ms) / baseline_ms
+      else
+        nil
       end
 
     derived_metrics = %{
@@ -650,20 +652,18 @@ defmodule Defdo.TailwindPort.Pool do
     previous_mtime = Map.get(port_info, :last_output_mtime)
     timeout_ms = Keyword.get(options, :compile_timeout_ms, 5_000)
 
-    cond do
-      is_nil(output_path) ->
-        css = fetch_latest_output(port_info.pid)
+    if is_nil(output_path) do
+      css = fetch_latest_output(port_info.pid)
 
-        {:degraded,
-         %{
-           css: css,
-           output_path: nil,
-           new_mtime: previous_mtime,
-           reason: :missing_output_path
-         }}
-
-      true ->
-        await_file_update(output_path, previous_mtime, timeout_ms)
+      {:degraded,
+       %{
+         css: css,
+         output_path: nil,
+         new_mtime: previous_mtime,
+         reason: :missing_output_path
+       }}
+    else
+      await_file_update(output_path, previous_mtime, timeout_ms)
     end
   end
 
@@ -845,14 +845,12 @@ defmodule Defdo.TailwindPort.Pool do
   defp demonitor_port(_), do: :ok
 
   defp get_port_from_pid(pid) do
-    try do
-      case Standalone.state(pid) do
-        %{port: port} -> port
-        _ -> nil
-      end
-    catch
-      :exit, _ -> nil
+    case Standalone.state(pid) do
+      %{port: port} -> port
+      _ -> nil
     end
+  catch
+    :exit, _ -> nil
   end
 
   defp ensure_port_ready(pid, options) do
@@ -1198,52 +1196,52 @@ defmodule Defdo.TailwindPort.Pool do
   defp do_await_file_update(path, previous_mtime, deadline) do
     now = System.monotonic_time(:millisecond)
 
-    cond do
-      now >= deadline ->
-        case read_output_file(path) do
-          {:ok, css, mtime} ->
-            {:degraded,
-             %{
-               css: css,
-               output_path: path,
-               new_mtime: mtime,
-               reason: :timeout
-             }}
+    if now >= deadline do
+      case read_output_file(path) do
+        {:ok, css, mtime} ->
+          {:degraded,
+           %{
+             css: css,
+             output_path: path,
+             new_mtime: mtime,
+             reason: :timeout
+           }}
 
-          {:error, _} ->
-            {:degraded,
-             %{
-               css: nil,
-               output_path: path,
-               new_mtime: previous_mtime,
-               reason: :timeout
-             }}
+        {:error, _} ->
+          {:degraded,
+           %{
+             css: nil,
+             output_path: path,
+             new_mtime: previous_mtime,
+             reason: :timeout
+           }}
+      end
+    else
+      handle_file_read_result(path, previous_mtime, deadline)
+    end
+  end
+
+  defp handle_file_read_result(path, previous_mtime, deadline) do
+    case read_output_file(path) do
+      {:ok, css, mtime} ->
+        if previous_mtime == nil or mtime > previous_mtime do
+          {:ok,
+           %{
+             css: css,
+             output_path: path,
+             new_mtime: mtime
+           }}
+        else
+          Process.sleep(75)
+          do_await_file_update(path, previous_mtime, deadline)
         end
 
-      true ->
-        case read_output_file(path) do
-          {:ok, css, mtime} ->
-            cond do
-              previous_mtime == nil or mtime > previous_mtime ->
-                {:ok,
-                 %{
-                   css: css,
-                   output_path: path,
-                   new_mtime: mtime
-                 }}
+      {:error, :enoent} ->
+        Process.sleep(75)
+        do_await_file_update(path, previous_mtime, deadline)
 
-              true ->
-                Process.sleep(75)
-                do_await_file_update(path, previous_mtime, deadline)
-            end
-
-          {:error, :enoent} ->
-            Process.sleep(75)
-            do_await_file_update(path, previous_mtime, deadline)
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

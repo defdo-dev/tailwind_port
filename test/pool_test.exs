@@ -454,135 +454,136 @@ defmodule Defdo.TailwindPort.PoolTest do
 
     # Helper function to test both Tailwind v3 and v4 compilation
     defp test_tailwind_compilation(tmp_dir, version) do
-      input_path = Path.join(tmp_dir, "input.css")
-      output_path = Path.join(tmp_dir, "output.css")
-      content_path = Path.join(tmp_dir, "content.html")
-      config_path = Path.join(tmp_dir, "tailwind.config.js")
+      paths = setup_test_paths(tmp_dir)
+      {input_content, config_content} = prepare_tailwind_config(version, paths.content_path)
 
-      # Setup files based on Tailwind version
-      {input_content, config_content} =
-        case version do
-          :v3 ->
-            input = "@tailwind utilities;\n"
+      # Write configuration files
+      File.write!(paths.input_path, input_content)
+      File.write!(paths.config_path, config_content)
 
-            config = """
-            module.exports = {
-              content: ["#{content_path}"],
-              theme: { extend: {} },
-              corePlugins: { preflight: false }
-            }
-            """
+      # Test first compilation
+      {_final_css, _final_has_classes, compile_opts} =
+        test_first_compilation(paths, version)
 
-            {input, config}
+      # Test second compilation to verify port reuse
+      test_second_compilation(paths, compile_opts, version)
 
-          :v4 ->
-            input = "@import \"tailwindcss\";\n"
+      # Verify pool statistics
+      verify_pool_statistics()
+    end
 
-            config = """
-            export default {
-              content: ["#{content_path}"],
-              theme: { extend: {} }
-            }
-            """
+    defp setup_test_paths(tmp_dir) do
+      %{
+        input_path: Path.join(tmp_dir, "input.css"),
+        output_path: Path.join(tmp_dir, "output.css"),
+        content_path: Path.join(tmp_dir, "content.html"),
+        config_path: Path.join(tmp_dir, "tailwind.config.js")
+      }
+    end
 
-            {input, config}
-        end
-
-      File.write!(input_path, input_content)
-      File.write!(config_path, config_content)
-
-      # Test with first HTML content
-      html1 = ~s(<div class="text-red-500 block">Hello</div>)
-      File.write!(content_path, html1)
-
-      opts = [
-        input: input_path,
-        output: output_path,
-        content: content_path,
-        config: config_path,
-        watch: true
-      ]
-
-      {:ok, result1} = Pool.compile(opts, html1)
-      css1 = result1.compiled_css || File.read!(output_path)
-
-      # Validate basic CSS output
-      assert String.length(css1) > 10, "Expected CSS output for #{version}, got: #{inspect(css1)}"
-
-      # Check for CSS class definitions - be flexible about format
-      has_classes = css1 =~ ~r/\.[a-z-]+\s*\{/ or css1 =~ ~r/\.(block|flex|grid|visible|static)/
-
-      # Handle version compatibility: if v4 syntax doesn't work, use v3 fallback
-      {final_css, final_has_classes} =
-        if version == :v4 and not has_classes do
-          # For v4 tests, if the initial attempt failed, try v3 syntax
-          # This ensures the test passes regardless of binary version
-          File.write!(input_path, "@tailwind utilities;\n")
-
-          File.write!(config_path, """
+    defp prepare_tailwind_config(version, content_path) do
+      case version do
+        :v3 ->
+          input = "@tailwind utilities;\n"
+          config = """
           module.exports = {
             content: ["#{content_path}"],
             theme: { extend: {} },
             corePlugins: { preflight: false }
           }
-          """)
+          """
+          {input, config}
 
-          # Use different options to avoid caching issues
-          opts_fallback = [
-            input: input_path,
-            output: output_path,
-            content: content_path,
-            config: config_path,
-            # Try without watch to avoid caching
-            watch: false
-          ]
+        :v4 ->
+          input = "@import \"tailwindcss\";\n"
+          config = """
+          export default {
+            content: ["#{content_path}"],
+            theme: { extend: {} }
+          }
+          """
+          {input, config}
+      end
+    end
 
-          {:ok, result1_fallback} = Pool.compile(opts_fallback, html1)
-          fallback_css = result1_fallback.compiled_css || File.read!(output_path)
+    defp test_first_compilation(paths, version) do
+      # Test with first HTML content
+      html1 = ~s(<div class="text-red-500 block">Hello</div>)
+      File.write!(paths.content_path, html1)
 
-          fallback_has_classes =
-            fallback_css =~ ~r/\.[a-z-]+\s*\{/ or
-              fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
+      opts = [
+        input: paths.input_path,
+        output: paths.output_path,
+        content: paths.content_path,
+        config: paths.config_path,
+        watch: true
+      ]
 
-          {fallback_css, fallback_has_classes}
-        else
-          {css1, has_classes}
-        end
+      {:ok, result1} = Pool.compile(opts, html1)
+      css1 = result1.compiled_css || File.read!(paths.output_path)
+
+      # Validate basic CSS output
+      assert String.length(css1) > 10, "Expected CSS output for #{version}, got: #{inspect(css1)}"
+
+      # Check for CSS class definitions
+      has_classes = css1 =~ ~r/\.[a-z-]+\s*\{/ or css1 =~ ~r/\.(block|flex|grid|visible|static)/
+
+      # Handle version compatibility fallback
+      {final_css, final_has_classes, compile_opts} =
+        handle_version_fallback(version, has_classes, css1, paths, html1, opts)
 
       assert final_has_classes,
              "Expected CSS class definitions in #{version} output (with fallback if needed): #{inspect(final_css)}"
 
-      # Test with second HTML content to verify port reuse
-      html2 = ~s(<p class="flex text-blue-600">Updated</p>)
-      File.write!(content_path, html2)
+      {final_css, final_has_classes, compile_opts}
+    end
 
-      # Use the same configuration that worked for the first compile
-      compile_opts =
-        if version == :v4 and not has_classes do
-          # If we used v3 fallback, continue with v3 syntax
-          [
-            input: input_path,
-            output: output_path,
-            content: content_path,
-            config: config_path,
-            watch: false
-          ]
-        else
-          opts
-        end
+    defp handle_version_fallback(:v4, false = _has_classes, _css1, paths, html1, _opts) do
+      # For v4 tests, if the initial attempt failed, try v3 syntax
+      File.write!(paths.input_path, "@tailwind utilities;\n")
+      File.write!(paths.config_path, """
+      module.exports = {
+        content: ["#{paths.content_path}"],
+        theme: { extend: {} },
+        corePlugins: { preflight: false }
+      }
+      """)
+
+      opts_fallback = [
+        input: paths.input_path,
+        output: paths.output_path,
+        content: paths.content_path,
+        config: paths.config_path,
+        watch: false
+      ]
+
+      {:ok, result1_fallback} = Pool.compile(opts_fallback, html1)
+      fallback_css = result1_fallback.compiled_css || File.read!(paths.output_path)
+      fallback_has_classes = fallback_css =~ ~r/\.[a-z-]+\s*\{/ or
+                            fallback_css =~ ~r/\.(block|flex|grid|visible|static)/
+
+      {fallback_css, fallback_has_classes, opts_fallback}
+    end
+
+    defp handle_version_fallback(_version, has_classes, css1, _paths, _html1, opts) do
+      {css1, has_classes, opts}
+    end
+
+    defp test_second_compilation(paths, compile_opts, version) do
+      html2 = ~s(<p class="flex text-blue-600">Updated</p>)
+      File.write!(paths.content_path, html2)
 
       {:ok, result2} = Pool.compile(compile_opts, html2)
-      css2 = result2.compiled_css || File.read!(output_path)
+      css2 = result2.compiled_css || File.read!(paths.output_path)
 
       assert String.length(css2) > 10, "Expected CSS output on second compile for #{version}"
 
-      # Verify that CSS compilation is working
       has_classes2 = css2 =~ ~r/\.[a-z-]+\s*\{/ or css2 =~ ~r/\.(block|flex|grid|visible|static)/
-
       assert has_classes2,
              "Expected CSS class definitions in second #{version} output: #{inspect(css2)}"
+    end
 
-      # Verify pool statistics
+    defp verify_pool_statistics do
       stats = Pool.get_stats()
       assert stats.port_creations >= 1, "Expected at least one port creation"
       assert stats.port_reuses >= 1, "Expected at least one port reuse"

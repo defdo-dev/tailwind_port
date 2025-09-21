@@ -472,7 +472,7 @@ defmodule Defdo.TailwindPort.PoolTelemetry do
         ["✅ No pool exhaustions - pool size is adequate" | insights]
       end
 
-    if length(insights) == 0 do
+    if Enum.empty?(insights) do
       "📊 Insufficient data for insights"
     else
       Enum.join(insights, "\n")
@@ -528,7 +528,7 @@ defmodule Defdo.TailwindPort.PoolTelemetry do
           recommendations
       end
 
-    if length(recommendations) == 0 do
+    if Enum.empty?(recommendations) do
       "✅ System is performing optimally - no specific recommendations"
     else
       Enum.join(recommendations, "\n")
