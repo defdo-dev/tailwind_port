@@ -26,7 +26,7 @@ defmodule Defdo.TailwindPort.Optimized do
   use GenServer
   require Logger
 
-  alias Defdo.TailwindPort
+  alias Defdo.TailwindPort.Standalone
 
   @default_pool_size 3
   @config_cache_ttl :timer.minutes(30)
@@ -513,7 +513,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
     result =
       try do
-        TailwindPort.start_link(Keyword.put(start_args, :name, port_name))
+        Standalone.start_link(Keyword.put(start_args, :name, port_name))
       catch
         :exit, reason -> {:error, reason}
       end
@@ -730,7 +730,7 @@ defmodule Defdo.TailwindPort.Optimized do
     {updated_stats, _} =
       Enum.reduce(terminated_ports, {state.stats, nil}, fn {hash, port_info}, {stats_acc, _} ->
         demonitor_port(port_info)
-        TailwindPort.terminate(port_info.pid)
+        Standalone.terminate(port_info.pid)
 
         port_lifetime = current_time - Map.get(port_info, :created_at, current_time)
 
@@ -846,7 +846,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
   defp get_port_from_pid(pid) do
     try do
-      case TailwindPort.state(pid) do
+      case Standalone.state(pid) do
         %{port: port} -> port
         _ -> nil
       end
@@ -881,13 +881,13 @@ defmodule Defdo.TailwindPort.Optimized do
   end
 
   defp safe_ready?(pid) do
-    TailwindPort.ready?(pid)
+    Standalone.ready?(pid)
   catch
     :exit, _ -> false
   end
 
   defp safe_wait_until_ready(pid, timeout) do
-    TailwindPort.wait_until_ready(pid, timeout)
+    Standalone.wait_until_ready(pid, timeout)
   catch
     :exit, {:timeout, _} -> {:error, :timeout}
     :exit, reason -> {:error, reason}
@@ -1270,7 +1270,7 @@ defmodule Defdo.TailwindPort.Optimized do
   end
 
   defp fetch_latest_output(pid) do
-    case TailwindPort.state(pid) do
+    case Standalone.state(pid) do
       %{latest_output: output} when is_binary(output) and output != "" -> output
       _ -> nil
     end

@@ -1,20 +1,20 @@
 defmodule Defdo.TailwindPortTest do
   @moduledoc false
   use ExUnit.Case
-  alias Defdo.TailwindPort
+  alias Defdo.TailwindPort.Standalone
   import ExUnit.CaptureLog
 
   test "initialize / terminate port" do
     name = :tw_port
 
-    assert {:ok, _pid} = TailwindPort.start_link(opts: ["-w"], name: name)
+    assert {:ok, _pid} = Standalone.start_link(opts: ["-w"], name: name)
 
-    assert %{port: port} = TailwindPort.state(name)
+    assert %{port: port} = Standalone.state(name)
 
     refute is_nil(Port.info(port))
 
     assert {:shutdown, "We complete our job"} =
-             TailwindPort.terminate("We complete our job", %{port: port})
+             Standalone.terminate("We complete our job", %{port: port})
 
     assert is_nil(Port.info(port))
   end
@@ -22,9 +22,9 @@ defmodule Defdo.TailwindPortTest do
   test "don't start port if empty opts" do
     name = :tw
 
-    assert {:ok, _pid} = TailwindPort.start_link(opts: [], name: name)
+    assert {:ok, _pid} = Standalone.start_link(opts: [], name: name)
 
-    assert %{port: port} = TailwindPort.state(name)
+    assert %{port: port} = Standalone.state(name)
 
     assert is_nil(Port.info(port))
   end
@@ -36,12 +36,12 @@ defmodule Defdo.TailwindPortTest do
 
     opts = ["-i", input, "-c", config, "--content", content, "-m"]
 
-    assert {:ok, _pid} = TailwindPort.start_link(opts: opts)
+    assert {:ok, _pid} = Standalone.start_link(opts: opts)
 
     # Use our new synchronization mechanism instead of sleep
-    assert :ok = TailwindPort.wait_until_ready(TailwindPort, 5000)
+    assert :ok = Standalone.wait_until_ready(Standalone, 5000)
 
-    assert %{port: port, latest_output: _output, port_ready: port_ready} = TailwindPort.state()
+    assert %{port: port, latest_output: _output, port_ready: port_ready} = Standalone.state()
 
     assert port_ready
     # For one-time builds (non-watch mode), the port should complete and exit
@@ -57,22 +57,22 @@ defmodule Defdo.TailwindPortTest do
   describe "GenServer lifecycle" do
     test "start_link with custom name" do
       name = :custom_tailwind_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
       assert Process.alive?(pid)
 
       # Should be able to get state by name
-      state = TailwindPort.state(name)
+      state = Standalone.state(name)
       assert is_map(state)
 
       GenServer.stop(pid)
     end
 
     test "start_link without name uses default" do
-      assert {:ok, pid} = TailwindPort.start_link(opts: [])
+      assert {:ok, pid} = Standalone.start_link(opts: [])
       assert Process.alive?(pid)
 
       # Should be able to get state with default name
-      state = TailwindPort.state()
+      state = Standalone.state()
       assert is_map(state)
 
       GenServer.stop(pid)
@@ -80,12 +80,12 @@ defmodule Defdo.TailwindPortTest do
 
     test "handles invalid options gracefully" do
       # Test with invalid binary path
-      assert {:ok, pid} = TailwindPort.start_link(opts: ["-i", "/nonexistent/file.css"])
+      assert {:ok, pid} = Standalone.start_link(opts: ["-i", "/nonexistent/file.css"])
 
       # Wait a bit for the port to potentially fail
       Process.sleep(100)
 
-      state = TailwindPort.state(pid)
+      state = Standalone.state(pid)
       # Port should either be nil or have failed
       assert is_map(state)
 
@@ -99,9 +99,9 @@ defmodule Defdo.TailwindPortTest do
   describe "state management" do
     test "state returns current port state" do
       name = :state_test_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
-      state = TailwindPort.state(name)
+      state = Standalone.state(name)
       assert is_map(state)
       assert Map.has_key?(state, :port)
       assert Map.has_key?(state, :latest_output)
@@ -115,7 +115,7 @@ defmodule Defdo.TailwindPortTest do
       # GenServer.call will raise an exit, not ArgumentError
       assert_raise RuntimeError, fn ->
         try do
-          TailwindPort.state(:non_existent_process)
+          Standalone.state(:non_existent_process)
         catch
           :exit, _ -> raise RuntimeError, "Process not found"
         end
@@ -126,14 +126,14 @@ defmodule Defdo.TailwindPortTest do
   describe "wait_until_ready functionality" do
     test "wait_until_ready with quick completion" do
       name = :quick_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
       # For empty opts, the port becomes ready immediately
       # Wait a bit for the process to initialize and mark as ready
       Process.sleep(200)
 
       # Check if it's ready or if it times out (both are acceptable for empty opts)
-      result = TailwindPort.wait_until_ready(name, 1000)
+      result = Standalone.wait_until_ready(name, 1000)
       assert result in [:ok, {:error, :timeout}]
 
       GenServer.stop(pid)
@@ -141,10 +141,10 @@ defmodule Defdo.TailwindPortTest do
 
     test "wait_until_ready with timeout" do
       name = :timeout_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: ["-w"], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: ["-w"], name: name)
 
       # Should timeout since watch mode doesn't complete quickly
-      assert {:error, :timeout} = TailwindPort.wait_until_ready(name, 100)
+      assert {:error, :timeout} = Standalone.wait_until_ready(name, 100)
 
       GenServer.stop(pid)
     end
@@ -156,7 +156,7 @@ defmodule Defdo.TailwindPortTest do
 
       # Start and stop multiple times rapidly
       for _i <- 1..3 do
-        assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+        assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
         Process.sleep(50)
         GenServer.stop(pid)
         Process.sleep(50)
@@ -171,7 +171,7 @@ defmodule Defdo.TailwindPortTest do
       log =
         capture_log(fn ->
           assert {:ok, pid} =
-                   TailwindPort.start_link(
+                   Standalone.start_link(
                      opts: ["--invalid-flag-that-does-not-exist"],
                      name: name
                    )
@@ -188,12 +188,12 @@ defmodule Defdo.TailwindPortTest do
   describe "basic functionality" do
     test "handles basic state queries" do
       name = :basic_test_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
       # Wait for initialization
       Process.sleep(100)
 
-      state = TailwindPort.state(name)
+      state = Standalone.state(name)
       # Basic state structure should be present
       assert is_map(state)
       assert Map.has_key?(state, :port)
@@ -204,7 +204,7 @@ defmodule Defdo.TailwindPortTest do
 
     test "start_link with default arguments" do
       # Test start_link without arguments (line 133)
-      {:ok, pid} = TailwindPort.start_link()
+      {:ok, pid} = Standalone.start_link()
       assert is_pid(pid)
 
       # Clean up
@@ -213,12 +213,12 @@ defmodule Defdo.TailwindPortTest do
 
     test "handles health checks" do
       name = :health_test_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
       # Wait for initialization
       Process.sleep(100)
 
-      health = TailwindPort.health(name)
+      health = Standalone.health(name)
       assert is_map(health)
 
       GenServer.stop(pid)
@@ -226,31 +226,31 @@ defmodule Defdo.TailwindPortTest do
 
     test "handles filesystem operations" do
       name = :fs_test_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
       # Wait for initialization
       Process.sleep(100)
 
       # Test filesystem initialization
-      result = TailwindPort.init_fs(name)
+      result = Standalone.init_fs(name)
       assert %Defdo.TailwindPort.FS{} = result
 
       # Test filesystem update
-      update_result = TailwindPort.update_fs(name, [])
+      update_result = Standalone.update_fs(name, [])
       assert %Defdo.TailwindPort.FS{} = update_result
 
       # Test combined update and init
-      combined_result = TailwindPort.update_and_init_fs(name, [])
+      combined_result = Standalone.update_and_init_fs(name, [])
       assert %Defdo.TailwindPort.FS{} = combined_result
 
       GenServer.stop(pid)
     end
 
     test "new function with default name" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_port_new)
+      {:ok, _pid} = Standalone.start_link(name: :test_port_new)
 
       # Test new with default name using invalid cmd
-      result = TailwindPort.new(cmd: "/nonexistent/binary")
+      result = Standalone.new(cmd: "/nonexistent/binary")
       # Expected to fail in test environment
       assert {:error, _} = result
 
@@ -258,10 +258,10 @@ defmodule Defdo.TailwindPortTest do
     end
 
     test "new function without opts executes successfully" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_port_warning)
+      {:ok, _pid} = Standalone.start_link(name: :test_port_warning)
 
       # Test new without opts - should execute without crashing
-      result = TailwindPort.new(:test_port_warning, cmd: "/bin/false")
+      result = Standalone.new(:test_port_warning, cmd: "/bin/false")
       # The result might be {:ok, _} or {:error, _} depending on environment
       assert result != nil
 
@@ -270,13 +270,13 @@ defmodule Defdo.TailwindPortTest do
 
     test "handles port ready checks" do
       name = :ready_test_port
-      assert {:ok, pid} = TailwindPort.start_link(opts: [], name: name)
+      assert {:ok, pid} = Standalone.start_link(opts: [], name: name)
 
       # Wait for initialization
       Process.sleep(100)
 
       # Check if port is ready
-      ready = TailwindPort.ready?(name, 1000)
+      ready = Standalone.ready?(name, 1000)
       assert is_boolean(ready)
 
       GenServer.stop(pid)

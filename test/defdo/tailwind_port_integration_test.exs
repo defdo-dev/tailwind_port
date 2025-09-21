@@ -1,57 +1,57 @@
 defmodule Defdo.TailwindPortIntegrationTest do
   @moduledoc false
   use ExUnit.Case
-  alias Defdo.TailwindPort
+  alias Defdo.TailwindPort.Standalone
 
   test "port synchronization and readiness" do
     name = :sync_test_port
     opts = ["-w", "--input", "./assets/css/app.css", "--content", "./priv/static/html/*.html"]
 
-    assert {:ok, _pid} = TailwindPort.start_link(opts: opts, name: name)
+    assert {:ok, _pid} = Standalone.start_link(opts: opts, name: name)
 
     # Test readiness check
     # Should not be ready immediately
-    refute TailwindPort.ready?(name, 100)
+    refute Standalone.ready?(name, 100)
 
     # Wait for readiness
-    assert :ok = TailwindPort.wait_until_ready(name, 10_000)
+    assert :ok = Standalone.wait_until_ready(name, 10_000)
 
     # Should now be ready
-    assert TailwindPort.ready?(name)
+    assert Standalone.ready?(name)
 
     # Check state
-    state = TailwindPort.state(name)
+    state = Standalone.state(name)
     assert state.port_ready
     assert state.port
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 
   test "input validation" do
     # Test invalid name
-    assert {:error, :invalid_name} = TailwindPort.start_link(name: "not_an_atom", opts: [])
+    assert {:error, :invalid_name} = Standalone.start_link(name: "not_an_atom", opts: [])
 
     # Test invalid opts
-    assert {:error, :invalid_opts} = TailwindPort.start_link(opts: "not_a_list")
+    assert {:error, :invalid_opts} = Standalone.start_link(opts: "not_a_list")
 
     # Test invalid args
-    assert {:error, :invalid_args} = TailwindPort.start_link("not_a_keyword_list")
+    assert {:error, :invalid_args} = Standalone.start_link("not_a_keyword_list")
   end
 
   test "new/2 validation" do
     name = :validation_test_port
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: [])
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: [])
 
     # Test invalid cmd
-    assert {:error, :invalid_cmd} = TailwindPort.new(name, cmd: 123)
+    assert {:error, :invalid_cmd} = Standalone.new(name, cmd: 123)
 
     # Test invalid opts
-    assert {:error, :invalid_opts} = TailwindPort.new(name, opts: "not_a_list")
+    assert {:error, :invalid_opts} = Standalone.new(name, opts: "not_a_list")
 
     # Test invalid args
-    assert {:error, :invalid_args} = TailwindPort.new(name, "not_a_keyword_list")
+    assert {:error, :invalid_args} = Standalone.new(name, "not_a_keyword_list")
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 
   # Reduced timeout
@@ -59,13 +59,13 @@ defmodule Defdo.TailwindPortIntegrationTest do
   test "port creation with retry demonstrates fast execution" do
     name = :retry_test_port
 
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: [])
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: [])
 
     # Use system binary that exists and works to demonstrate the optimization
     # The retry logic configuration (50ms delays) is tested in unit tests
     {time_us, result} =
       :timer.tc(fn ->
-        TailwindPort.new(name, cmd: "/bin/echo", opts: ["hello"])
+        Standalone.new(name, cmd: "/bin/echo", opts: ["hello"])
       end)
 
     # Should complete quickly due to our optimizations
@@ -76,7 +76,7 @@ defmodule Defdo.TailwindPortIntegrationTest do
     assert match?({:ok, _}, result) or match?({:error, _}, result)
 
     if Process.whereis(name) do
-      TailwindPort.terminate(name)
+      Standalone.terminate(name)
     end
   end
 
@@ -84,32 +84,32 @@ defmodule Defdo.TailwindPortIntegrationTest do
     # This test verifies our configuration optimizations are working
     name = :config_test
 
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: [])
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: [])
 
     # Test that we can get health metrics quickly
-    health = TailwindPort.health(name)
+    health = Standalone.health(name)
     assert is_map(health)
     assert health.total_outputs == 0
     assert health.errors == 0
 
     # Test ready? function responds quickly
     # Very short timeout
-    ready_result = TailwindPort.ready?(name, 100)
+    ready_result = Standalone.ready?(name, 100)
     assert is_boolean(ready_result)
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 
   test "timeout handling" do
     name = :timeout_test_port
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: [])
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: [])
 
     # Test ready? with short timeout
-    refute TailwindPort.ready?(name, 10)
+    refute Standalone.ready?(name, 10)
 
     # Test wait_until_ready with very short timeout
-    assert {:error, :timeout} = TailwindPort.wait_until_ready(name, 50)
+    assert {:error, :timeout} = Standalone.wait_until_ready(name, 50)
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 end

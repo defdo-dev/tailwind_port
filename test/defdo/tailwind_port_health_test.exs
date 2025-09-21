@@ -1,15 +1,15 @@
 defmodule Defdo.TailwindPortHealthTest do
   @moduledoc false
   use ExUnit.Case
-  alias Defdo.TailwindPort
+  alias Defdo.TailwindPort.Standalone
 
   test "health metrics are tracked" do
     name = :health_test_port
 
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: [])
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: [])
 
     # Get initial health
-    health = TailwindPort.health(name)
+    health = Standalone.health(name)
 
     assert is_map(health)
     assert is_number(health.created_at)
@@ -20,20 +20,20 @@ defmodule Defdo.TailwindPortHealthTest do
     assert is_number(health.uptime_seconds)
     assert health.uptime_seconds >= 0
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 
   test "health metrics update with port activity" do
     name = :health_activity_test
     opts = ["-i", "./assets/css/app.css", "--content", "./priv/static/html/*.html", "-m"]
 
-    assert {:ok, _pid} = TailwindPort.start_link(name: name, opts: opts)
+    assert {:ok, _pid} = Standalone.start_link(name: name, opts: opts)
 
     # Wait for some activity
-    :ok = TailwindPort.wait_until_ready(name, 5000)
+    :ok = Standalone.wait_until_ready(name, 5000)
 
     # Check health after activity
-    health = TailwindPort.health(name)
+    health = Standalone.health(name)
 
     # Should have some activity now
     assert health.port_ready == true
@@ -41,6 +41,6 @@ defmodule Defdo.TailwindPortHealthTest do
     assert is_number(health.total_outputs)
     assert is_number(health.css_builds)
 
-    TailwindPort.terminate(name)
+    Standalone.terminate(name)
   end
 end

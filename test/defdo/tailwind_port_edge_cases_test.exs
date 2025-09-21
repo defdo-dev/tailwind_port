@@ -1,43 +1,43 @@
 defmodule Defdo.TailwindPortEdgeCasesTest do
   @moduledoc false
   use ExUnit.Case
-  alias Defdo.TailwindPort
+  alias Defdo.TailwindPort.Standalone
 
   describe "edge cases and error paths" do
     test "validation functions with invalid inputs" do
       # Test start_link with invalid args
-      result = TailwindPort.start_link("invalid_args")
+      result = Standalone.start_link("invalid_args")
       assert {:error, :invalid_args} = result
 
       # Test start_link with invalid name
-      result = TailwindPort.start_link(name: "string_name")
+      result = Standalone.start_link(name: "string_name")
       assert {:error, :invalid_name} = result
 
       # Test start_link with invalid opts
-      result = TailwindPort.start_link(opts: "invalid_opts")
+      result = Standalone.start_link(opts: "invalid_opts")
       assert {:error, :invalid_opts} = result
     end
 
     test "new function with invalid arguments" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_validation)
+      {:ok, _pid} = Standalone.start_link(name: :test_validation)
 
       # Test with invalid cmd
-      result = TailwindPort.new(:test_validation, cmd: 123)
+      result = Standalone.new(:test_validation, cmd: 123)
       assert {:error, :invalid_cmd} = result
 
       # Test with invalid opts
-      result = TailwindPort.new(:test_validation, opts: "invalid")
+      result = Standalone.new(:test_validation, opts: "invalid")
       assert {:error, :invalid_opts} = result
 
       # Test with completely invalid args
-      result = TailwindPort.new(:test_validation, "invalid")
+      result = Standalone.new(:test_validation, "invalid")
       assert {:error, :invalid_args} = result
 
-      TailwindPort.terminate(:test_validation)
+      Standalone.terminate(:test_validation)
     end
 
     test "handle_info with unknown messages" do
-      {:ok, pid} = TailwindPort.start_link(name: :test_unknown_msg, opts: [])
+      {:ok, pid} = Standalone.start_link(name: :test_unknown_msg, opts: [])
 
       # Send unknown message
       send(pid, :unknown_message)
@@ -47,14 +47,14 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
       Process.sleep(100)
       assert Process.alive?(pid)
 
-      TailwindPort.terminate(:test_unknown_msg)
+      Standalone.terminate(:test_unknown_msg)
     end
 
     test "port exit with non-zero status" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_exit_status, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_exit_status, opts: [])
 
       # Create a port that will exit with error
-      result = TailwindPort.new(:test_exit_status, cmd: "/bin/false", opts: [])
+      result = Standalone.new(:test_exit_status, cmd: "/bin/false", opts: [])
 
       case result do
         {:ok, _state} ->
@@ -62,7 +62,7 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
           Process.sleep(1000)
 
           # Check health - should show error count increased
-          health = TailwindPort.health(:test_exit_status)
+          health = Standalone.health(:test_exit_status)
           # May or may not have incremented yet
           assert health.errors >= 0
 
@@ -71,19 +71,19 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
           :ok
       end
 
-      TailwindPort.terminate(:test_exit_status)
+      Standalone.terminate(:test_exit_status)
     end
 
     test "startup timeout handling" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_startup_timeout, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_startup_timeout, opts: [])
 
       # Try to create a port that will hang during startup
-      result = TailwindPort.new(:test_startup_timeout, cmd: "/bin/sleep", opts: ["30"])
+      result = Standalone.new(:test_startup_timeout, cmd: "/bin/sleep", opts: ["30"])
 
       case result do
         {:ok, _state} ->
           # Test wait_until_ready with short timeout
-          result = TailwindPort.wait_until_ready(:test_startup_timeout, 100)
+          result = Standalone.wait_until_ready(:test_startup_timeout, 100)
           assert {:error, :timeout} = result
 
         {:error, _reason} ->
@@ -91,14 +91,14 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
           :ok
       end
 
-      TailwindPort.terminate(:test_startup_timeout)
+      Standalone.terminate(:test_startup_timeout)
     end
 
     test "health metrics edge cases" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_health_edge, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_health_edge, opts: [])
 
       # Get initial health
-      health = TailwindPort.health(:test_health_edge)
+      health = Standalone.health(:test_health_edge)
 
       assert health.uptime_seconds >= 0
       assert health.total_outputs == 0
@@ -107,24 +107,24 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
       assert health.port_ready == false
       assert is_number(health.last_activity_seconds_ago)
 
-      TailwindPort.terminate(:test_health_edge)
+      Standalone.terminate(:test_health_edge)
     end
 
     test "ready? function with timeout" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_ready_timeout, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_ready_timeout, opts: [])
 
       # Test ready? with very short timeout
-      result = TailwindPort.ready?(:test_ready_timeout, 1)
+      result = Standalone.ready?(:test_ready_timeout, 1)
       assert result == false
 
-      TailwindPort.terminate(:test_ready_timeout)
+      Standalone.terminate(:test_ready_timeout)
     end
 
     test "terminate with already terminated process" do
-      {:ok, pid} = TailwindPort.start_link(name: :test_double_terminate, opts: [])
+      {:ok, pid} = Standalone.start_link(name: :test_double_terminate, opts: [])
 
       # First terminate
-      TailwindPort.terminate(:test_double_terminate)
+      Standalone.terminate(:test_double_terminate)
 
       # Wait for process to die
       Process.sleep(100)
@@ -132,7 +132,7 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
 
       # Second terminate should handle gracefully (might raise an error, that's OK)
       try do
-        TailwindPort.terminate(:test_double_terminate)
+        Standalone.terminate(:test_double_terminate)
       catch
         # Expected when process doesn't exist
         :exit, _reason -> :ok
@@ -140,7 +140,7 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
     end
 
     test "process exit scenarios" do
-      {:ok, pid} = TailwindPort.start_link(name: :test_exit_scenarios, opts: [])
+      {:ok, pid} = Standalone.start_link(name: :test_exit_scenarios, opts: [])
 
       # Simulate different exit messages (these are handled in handle_info)
       send(pid, {:DOWN, make_ref(), :port, self(), :normal})
@@ -153,12 +153,12 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
       :ok
 
       if Process.alive?(pid) do
-        TailwindPort.terminate(:test_exit_scenarios)
+        Standalone.terminate(:test_exit_scenarios)
       end
     end
 
     test "command building edge cases" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_cmd_building, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_cmd_building, opts: [])
 
       # Test with various option combinations
       test_cases = [
@@ -181,48 +181,48 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
       ]
 
       Enum.each(test_cases, fn opts ->
-        result = TailwindPort.new(:test_cmd_building, opts: opts)
+        result = Standalone.new(:test_cmd_building, opts: opts)
         # These should mostly fail in test environment, but exercise the code paths
         assert match?({:error, _}, result) or match?({:ok, _}, result)
       end)
 
-      TailwindPort.terminate(:test_cmd_building)
+      Standalone.terminate(:test_cmd_building)
     end
 
     test "fs operations edge cases" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_fs_ops, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_fs_ops, opts: [])
 
       # Test FS operations
-      fs = TailwindPort.init_fs(:test_fs_ops)
+      fs = Standalone.init_fs(:test_fs_ops)
       assert %Defdo.TailwindPort.FS{} = fs
 
       # Test FS update
       updated_fs =
-        TailwindPort.update_fs(:test_fs_ops, working_files: [input_css_path: "/tmp/test.css"])
+        Standalone.update_fs(:test_fs_ops, working_files: [input_css_path: "/tmp/test.css"])
 
       assert updated_fs.working_files.input_css_path == "/tmp/test.css"
 
       # Test FS update and init
       init_fs =
-        TailwindPort.update_and_init_fs(:test_fs_ops,
+        Standalone.update_and_init_fs(:test_fs_ops,
           working_files: [output_css_path: "/tmp/out.css"]
         )
 
       assert init_fs.working_files.output_css_path == "/tmp/out.css"
 
-      TailwindPort.terminate(:test_fs_ops)
+      Standalone.terminate(:test_fs_ops)
     end
 
     test "port monitoring and cleanup" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_port_monitoring, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_port_monitoring, opts: [])
 
       # Try to create a port to test monitoring
-      result = TailwindPort.new(:test_port_monitoring, cmd: "/bin/echo", opts: ["test"])
+      result = Standalone.new(:test_port_monitoring, cmd: "/bin/echo", opts: ["test"])
 
       case result do
         {:ok, _state} ->
           # Port creation succeeded, check state via health
-          health = TailwindPort.health(:test_port_monitoring)
+          health = Standalone.health(:test_port_monitoring)
           assert is_map(health)
 
         {:error, _reason} ->
@@ -230,17 +230,17 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
           :ok
       end
 
-      TailwindPort.terminate(:test_port_monitoring)
+      Standalone.terminate(:test_port_monitoring)
     end
 
     test "multiple waiting callers for ready state" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_multiple_waiters, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_multiple_waiters, opts: [])
 
       # Start multiple wait_until_ready calls
       tasks =
         for _i <- 1..3 do
           Task.async(fn ->
-            TailwindPort.wait_until_ready(:test_multiple_waiters, 1000)
+            Standalone.wait_until_ready(:test_multiple_waiters, 1000)
           end)
         end
 
@@ -251,16 +251,16 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
         assert {:error, :timeout} = result
       end
 
-      TailwindPort.terminate(:test_multiple_waiters)
+      Standalone.terminate(:test_multiple_waiters)
     end
   end
 
   describe "data processing edge cases" do
     test "handle port data with various content types" do
-      {:ok, _pid} = TailwindPort.start_link(name: :test_data_processing, opts: [])
+      {:ok, _pid} = Standalone.start_link(name: :test_data_processing, opts: [])
 
       # First create a port so we can simulate data from it
-      result = TailwindPort.new(:test_data_processing, cmd: "/bin/echo", opts: ["test"])
+      result = Standalone.new(:test_data_processing, cmd: "/bin/echo", opts: ["test"])
 
       case result do
         {:ok, _state} ->
@@ -268,19 +268,19 @@ defmodule Defdo.TailwindPortEdgeCasesTest do
           Process.sleep(200)
 
           # Check that health metrics exist
-          health = TailwindPort.health(:test_data_processing)
+          health = Standalone.health(:test_data_processing)
           assert is_map(health)
           # Might have some output from echo
           assert health.total_outputs >= 0
 
         {:error, _reason} ->
           # Port creation failed, just check basic health metrics
-          health = TailwindPort.health(:test_data_processing)
+          health = Standalone.health(:test_data_processing)
           assert is_map(health)
           assert health.total_outputs == 0
       end
 
-      TailwindPort.terminate(:test_data_processing)
+      Standalone.terminate(:test_data_processing)
     end
   end
 end
