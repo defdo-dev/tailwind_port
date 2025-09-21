@@ -43,8 +43,7 @@ defmodule TailwindPort.MixProject do
           "guides/API_REFERENCE.md",
           "guides/MIGRATION_GUIDE.md",
           "guides/PERFORMANCE.md",
-          "CHANGELOG.md",
-          "CLAUDE.md"
+          "CHANGELOG.md"
         ],
         groups_for_extras: [
           "Getting Started": ["README.md", "guides/QUICK_START.md"],
@@ -55,7 +54,7 @@ defmodule TailwindPort.MixProject do
             "guides/PERFORMANCE.md"
           ],
           Reference: ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
-          "Project Info": ["CHANGELOG.md", "CLAUDE.md"]
+          "Project Info": ["CHANGELOG.md"]
         ]
       ]
     ]
@@ -71,7 +70,7 @@ defmodule TailwindPort.MixProject do
         "Documentation" => "https://hexdocs.pm/tailwind_port"
       },
       maintainers: ["Defdo Team"],
-      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE CLAUDE.md guides),
+      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE guides),
       # Exclude the binary - will be downloaded
       exclude_patterns: ["priv/bin/tailwindcss"],
       keywords: [
