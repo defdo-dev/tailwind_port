@@ -1,7 +1,7 @@
-defmodule Defdo.TailwindPort.Optimized do
+defmodule Defdo.TailwindPort.Pool do
   @moduledoc """
-  Highly optimized TailwindPort implementation with intelligent resource management,
-  port pooling, configuration caching, and watch mode optimization.
+  Pooled TailwindPort implementation with intelligent resource management,
+  port reuse, configuration caching, and watch mode optimization.
 
   ## Key Optimizations
 
@@ -13,14 +13,14 @@ defmodule Defdo.TailwindPort.Optimized do
 
   ## Usage
 
-      # Start the optimized pool
-      {:ok, _pid} = TailwindPort.Optimized.start_link()
+      # Start the pooled Tailwind manager
+      {:ok, _pid} = TailwindPort.Pool.start_link()
 
       # Compile with intelligent reuse
-      {:ok, result} = TailwindPort.Optimized.compile(opts, content)
+      {:ok, result} = TailwindPort.Pool.compile(opts, content)
 
       # Batch multiple compilations
-      {:ok, results} = TailwindPort.Optimized.batch_compile(operations)
+      {:ok, results} = TailwindPort.Pool.batch_compile(operations)
   """
 
   use GenServer
@@ -130,7 +130,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
     # Emit telemetry for compilation start
     :telemetry.execute(
-      [:tailwind_port_optimized, :compile, :start],
+      [:tailwind_port_pool, :compile, :start],
       %{system_time: System.system_time(:microsecond)},
       %{
         operation_id: normalized_operation.id,
@@ -155,7 +155,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
             # Emit success telemetry
             :telemetry.execute(
-              [:tailwind_port_optimized, :compile, :stop],
+              [:tailwind_port_pool, :compile, :stop],
               %{duration: duration, cache_hits: updated_stats.cache_hits},
               %{
                 operation_id: normalized_operation.id,
@@ -172,7 +172,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
             # Emit error telemetry
             :telemetry.execute(
-              [:tailwind_port_optimized, :compile, :error],
+              [:tailwind_port_pool, :compile, :error],
               %{duration: duration, error_count: updated_stats.failed_compilations},
               %{
                 operation_id: normalized_operation.id,
@@ -194,7 +194,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
         # Emit port creation error telemetry
         :telemetry.execute(
-          [:tailwind_port_optimized, :pool, :port_creation_failed],
+          [:tailwind_port_pool, :pool, :port_creation_failed],
           %{duration: duration},
           %{
             operation_id: normalized_operation.id,
@@ -298,7 +298,7 @@ defmodule Defdo.TailwindPort.Optimized do
       |> Map.put(:derived_metrics, derived_metrics)
 
     :telemetry.execute(
-      [:tailwind_port_optimized, :metrics, :snapshot],
+      [:tailwind_port_pool, :metrics, :snapshot],
       %{
         reuse_rate: derived_metrics.port.reuse_rate,
         avg_port_lifetime_ms: derived_metrics.port.avg_lifetime_ms,
@@ -357,7 +357,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
   @impl true
   def handle_info(msg, state) do
-    Logger.debug("Unhandled message in Optimized TailwindPort: #{inspect(msg)}")
+    Logger.debug("Unhandled message in Pool TailwindPort: #{inspect(msg)}")
     {:noreply, state}
   end
 
@@ -379,7 +379,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
         # Emit port reuse telemetry
         :telemetry.execute(
-          [:tailwind_port_optimized, :pool, :port_reused],
+          [:tailwind_port_pool, :pool, :port_reused],
           %{
             port_age_ms: System.monotonic_time(:millisecond) - port_info.last_used,
             build_count: port_info.build_count
@@ -399,7 +399,7 @@ defmodule Defdo.TailwindPort.Optimized do
         else
           # Emit pool exhaustion telemetry
           :telemetry.execute(
-            [:tailwind_port_optimized, :pool, :exhausted],
+            [:tailwind_port_pool, :pool, :exhausted],
             %{pool_size: map_size(state.port_pool), max_size: state.options[:max_pool_size]},
             %{config_hash: config_hash}
           )
@@ -449,7 +449,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
         # Emit port creation telemetry
         :telemetry.execute(
-          [:tailwind_port_optimized, :pool, :port_created],
+          [:tailwind_port_pool, :pool, :port_created],
           %{
             creation_duration: port_creation_duration,
             pool_size: map_size(new_pool)
@@ -495,7 +495,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
         # Emit port creation failure telemetry
         :telemetry.execute(
-          [:tailwind_port_optimized, :pool, :port_creation_failed],
+          [:tailwind_port_pool, :pool, :port_creation_failed],
           %{creation_duration: port_creation_duration},
           %{
             config_hash: config_hash,
@@ -736,7 +736,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
         # Emit port termination telemetry
         :telemetry.execute(
-          [:tailwind_port_optimized, :pool, :port_terminated],
+          [:tailwind_port_pool, :pool, :port_terminated],
           %{
             port_lifetime: port_lifetime,
             build_count: port_info.build_count,
@@ -770,7 +770,7 @@ defmodule Defdo.TailwindPort.Optimized do
 
     # Emit cleanup telemetry
     :telemetry.execute(
-      [:tailwind_port_optimized, :maintenance, :cleanup_completed],
+      [:tailwind_port_pool, :maintenance, :cleanup_completed],
       %{
         cleanup_duration: cleanup_duration,
         ports_terminated: length(terminated_ports),

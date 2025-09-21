@@ -18,7 +18,7 @@ This guide covers performance optimization techniques, best practices, and commo
 ```elixir
 # Good - reliable synchronization
 {:ok, _pid} = TailwindPort.start_link(opts: build_opts)
-:ok = TailwindPort.wait_until_ready()
+:ok = TailwindPort.Standalone.wait_until_ready()
 # Port is now ready for use
 ```
 
@@ -34,7 +34,7 @@ Process.sleep(2000)  # Unreliable timing
 For development environments, optimize watch mode for faster rebuilds:
 
 ```elixir
-# Optimized watch mode configuration
+# Pooled watch mode configuration
 opts = [
   "-i", "./assets/css/app.css",
   "--content", "./lib/**/*.{ex,heex,sface}",  # Specific file patterns
@@ -62,7 +62,7 @@ production_opts = [
 ]
 
 {:ok, _pid} = TailwindPort.start_link(name: :prod_build, opts: production_opts)
-:ok = TailwindPort.wait_until_ready(:prod_build, 30_000)  # Longer timeout for production
+:ok = TailwindPort.Standalone.wait_until_ready(:prod_build, 30_000)  # Longer timeout for production
 ```
 
 ### 4. Content Path Optimization
@@ -92,7 +92,7 @@ defmodule MyApp.TailwindManager do
   def ensure_css_build(opts) do
     case TailwindPort.new(:css_build, opts: opts) do
       {:ok, _state} ->
-        case TailwindPort.wait_until_ready(:css_build, 15_000) do
+        case TailwindPort.Standalone.wait_until_ready(:css_build, 15_000) do
           :ok ->
             {:ok, :build_ready}
           {:error, :timeout} ->
@@ -117,7 +117,7 @@ Implement comprehensive health monitoring:
 ```elixir
 defmodule MyApp.TailwindHealthChecker do
   def check_health(name) do
-    health = TailwindPort.health(name)
+    health = TailwindPort.Standalone.health(name)
     
     cond do
       not health.port_ready ->
@@ -214,7 +214,7 @@ defmodule MyApp.BuildPipeline do
     
     case TailwindPort.new(:build_css, opts: opts) do
       {:ok, _} ->
-        TailwindPort.wait_until_ready(:build_css, 30_000)
+        TailwindPort.Standalone.wait_until_ready(:build_css, 30_000)
       error ->
         error
     end
@@ -258,7 +258,7 @@ defmodule MyApp.TailwindWatcher do
     
     case TailwindPort.start_link(name: :dev_watcher, opts: opts) do
       {:ok, _pid} ->
-        TailwindPort.wait_until_ready(:dev_watcher)
+        TailwindPort.Standalone.wait_until_ready(:dev_watcher)
         Logger.info("Tailwind watcher started successfully")
       
       {:error, reason} ->
@@ -306,7 +306,7 @@ defmodule MyApp.TailwindCircuitBreaker do
   defp attempt_build(opts, state) do
     case TailwindPort.new(:circuit_build, opts: opts) do
       {:ok, _} ->
-        case TailwindPort.wait_until_ready(:circuit_build, 15_000) do
+        case TailwindPort.Standalone.wait_until_ready(:circuit_build, 15_000) do
           :ok ->
             TailwindPort.terminate(:circuit_build)
             {:reply, {:ok, :build_success}, %{state | failures: 0, state: :closed}}
@@ -393,7 +393,7 @@ Collect performance metrics:
 ```elixir
 defmodule MyApp.TailwindMetrics do
   def collect_metrics(name) do
-    health = TailwindPort.health(name)
+    health = TailwindPort.Standalone.health(name)
     
     # Example metrics you might want to track
     %{
@@ -430,14 +430,14 @@ end
 **Solutions**:
 ```elixir
 # Check if binary exists and is executable
-case TailwindPort.ready?(:my_port, 1000) do
+case TailwindPort.Standalone.ready?(:my_port, 1000) do
   false ->
     # Port might be starting up, check health
-    health = TailwindPort.health(:my_port)
+    health = TailwindPort.Standalone.health(:my_port)
     
     if health.port_active do
       Logger.info("Port is active but not ready yet, waiting longer...")
-      TailwindPort.wait_until_ready(:my_port, 30_000)
+      TailwindPort.Standalone.wait_until_ready(:my_port, 30_000)
     else
       Logger.error("Port is not active, restarting...")
       TailwindPort.terminate(:my_port)
@@ -456,7 +456,7 @@ end
 **Solutions**:
 ```elixir
 # Analyze error patterns
-health = TailwindPort.health(:my_port)
+health = TailwindPort.Standalone.health(:my_port)
 
 if health.errors > 0 do
   error_rate = health.errors / health.total_outputs

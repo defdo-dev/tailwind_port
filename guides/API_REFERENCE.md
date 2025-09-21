@@ -92,12 +92,12 @@ Checks if a TailwindPort process is ready to handle requests.
 **Examples:**
 ```elixir
 # Check default process
-if Defdo.TailwindPort.ready?() do
+if Defdo.TailwindPort.Standalone.ready?() do
   IO.puts("Ready to process CSS!")
 end
 
 # Check named process with custom timeout
-if Defdo.TailwindPort.ready?(:my_tailwind, 10_000) do
+if Defdo.TailwindPort.Standalone.ready?(:my_tailwind, 10_000) do
   IO.puts("My Tailwind process is ready!")
 end
 ```
@@ -121,13 +121,13 @@ Waits until a TailwindPort process is ready, with timeout.
 **Examples:**
 ```elixir
 # Wait for default process
-case Defdo.TailwindPort.wait_until_ready() do
+case Defdo.TailwindPort.Standalone.wait_until_ready() do
   :ok -> IO.puts("Ready!")
   {:error, :timeout} -> IO.puts("Timed out")
 end
 
 # Wait for named process with custom timeout
-:ok = Defdo.TailwindPort.wait_until_ready(:my_tailwind, 30_000)
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(:my_tailwind, 30_000)
 ```
 
 #### health/1
@@ -163,13 +163,13 @@ Retrieves health metrics and status information for a TailwindPort process.
 **Examples:**
 ```elixir
 # Get health for default process
-{:ok, health} = Defdo.TailwindPort.health()
+{:ok, health} = Defdo.TailwindPort.Standalone.health()
 IO.puts("Uptime: #{health.uptime_seconds}s")
 IO.puts("CSS builds: #{health.css_builds}")
 IO.puts("Errors: #{health.errors}")
 
 # Get health for named process
-case Defdo.TailwindPort.health(:my_tailwind) do
+case Defdo.TailwindPort.Standalone.health(:my_tailwind) do
   {:ok, health} -> 
     IO.inspect(health)
   {:error, :not_found} -> 
@@ -463,10 +463,10 @@ TailwindPort uses consistent error tuples throughout the API:
 
 ```elixir
 # Process not found
-{:error, :not_found} = Defdo.TailwindPort.health(:nonexistent)
+{:error, :not_found} = Defdo.TailwindPort.Standalone.health(:nonexistent)
 
 # Timeout
-{:error, :timeout} = Defdo.TailwindPort.wait_until_ready(:slow_process, 1000)
+{:error, :timeout} = Defdo.TailwindPort.Standalone.wait_until_ready(:slow_process, 1000)
 
 # Invalid arguments
 {:error, :invalid_args} = Defdo.TailwindPort.start_link(opts: "invalid")

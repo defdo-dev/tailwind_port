@@ -49,7 +49,7 @@ mix compile
 ])
 
 # Wait until ready
-:ok = Defdo.TailwindPort.wait_until_ready()
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready()
 
 IO.puts("CSS generated successfully!")
 ```
@@ -69,7 +69,7 @@ IO.puts("CSS generated successfully!")
 ])
 
 # Verify it's working
-case Defdo.TailwindPort.wait_until_ready(:dev_watcher, 10_000) do
+case Defdo.TailwindPort.Standalone.wait_until_ready(:dev_watcher, 10_000) do
   :ok -> IO.puts("🎨 Tailwind is watching for changes!")
   {:error, :timeout} -> IO.puts("❌ Failed to start watcher")
 end
@@ -175,7 +175,7 @@ defmodule YourApp.TailwindManager do
         Logger.info("🎨 Starting Tailwind CSS watcher...")
         
         Task.start(fn ->
-          case Defdo.TailwindPort.wait_until_ready(:phoenix_tailwind, 15_000) do
+          case Defdo.TailwindPort.Standalone.wait_until_ready(:phoenix_tailwind, 15_000) do
             :ok -> 
               Logger.info("✅ Tailwind CSS watcher ready!")
             {:error, :timeout} ->
@@ -206,7 +206,7 @@ defmodule YourApp.BuildAssets do
       ]
     ])
     
-    :ok = Defdo.TailwindPort.wait_until_ready(:prod_build, 30_000)
+    :ok = Defdo.TailwindPort.Standalone.wait_until_ready(:prod_build, 30_000)
     IO.puts("✅ Production CSS generated!")
   end
 end
@@ -224,12 +224,12 @@ mix run -e "YourApp.BuildAssets.build_production()"
 
 ```elixir
 # Check if ready
-if Defdo.TailwindPort.ready?() do
+if Defdo.TailwindPort.Standalone.ready?() do
   IO.puts("Port ready to process CSS")
 end
 
 # Get health metrics
-health = Defdo.TailwindPort.health()
+health = Defdo.TailwindPort.Standalone.health()
 IO.inspect(health)
 # %{
 #   created_at: 1706364000000000000,
@@ -270,7 +270,7 @@ mix run -e "Defdo.TailwindDownload.install()"
 
 ```elixir
 # Increase the timeout
-:ok = Defdo.TailwindPort.wait_until_ready(:my_port, 30_000)  # 30 seconds
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(:my_port, 30_000)  # 30 seconds
 ```
 
 ### CSS not updating

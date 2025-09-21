@@ -62,7 +62,7 @@ Process.sleep(3000)  # Hope it's ready!
 ```elixir
 # Reliable synchronization
 {:ok, pid} = Defdo.TailwindPort.start_link(opts: opts)
-:ok = Defdo.TailwindPort.wait_until_ready(TailwindPort, 10_000)
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(TailwindPort, 10_000)
 # Now guaranteed to be ready
 ```
 
@@ -112,12 +112,12 @@ If you were accessing internal state (not recommended), the state structure has 
 
 ```elixir
 # Check if port is ready
-if Defdo.TailwindPort.ready?(:my_port) do
+if Defdo.TailwindPort.Standalone.ready?(:my_port) do
   IO.puts("Port is ready for operations")
 end
 
 # Wait for port to become ready
-case Defdo.TailwindPort.wait_until_ready(:my_port, 15_000) do
+case Defdo.TailwindPort.Standalone.wait_until_ready(:my_port, 15_000) do
   :ok -> IO.puts("Port is ready!")
   {:error, :timeout} -> IO.puts("Port startup timed out")
 end
@@ -127,7 +127,7 @@ end
 
 ```elixir
 # Get comprehensive health metrics
-{:ok, health} = Defdo.TailwindPort.health(:my_port)
+{:ok, health} = Defdo.TailwindPort.Standalone.health(:my_port)
 IO.inspect(health)
 # %{
 #   created_at: 1706364000000000000,
@@ -189,7 +189,7 @@ Process.sleep(5000)  # Don't do this!
 **Recommended:**
 ```elixir
 {:ok, pid} = Defdo.TailwindPort.start_link(opts)
-:ok = Defdo.TailwindPort.wait_until_ready()
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready()
 ```
 
 ### Ignoring Error Tuples
@@ -272,7 +272,7 @@ Process.sleep(3000)
 **After:**
 ```elixir
 {:ok, pid} = Defdo.TailwindPort.start_link(opts: opts)
-:ok = Defdo.TailwindPort.wait_until_ready()
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready()
 # Continue...
 ```
 
@@ -285,7 +285,7 @@ defmodule MyApp.TailwindManager do
   def start_tailwind(opts) do
     case Defdo.TailwindPort.start_link(opts) do
       {:ok, pid} ->
-        case Defdo.TailwindPort.wait_until_ready() do
+        case Defdo.TailwindPort.Standalone.wait_until_ready() do
           :ok -> {:ok, pid}
           {:error, :timeout} -> {:error, :startup_timeout}
         end
@@ -315,7 +315,7 @@ defmodule MyApp.TailwindMonitor do
   end
   
   def handle_info(:health_check, %{port_name: port_name} = state) do
-    case Defdo.TailwindPort.health(port_name) do
+    case Defdo.TailwindPort.Standalone.health(port_name) do
       {:ok, health} ->
         if health.errors > 0 do
           Logger.warn("Tailwind port has #{health.errors} errors")
@@ -354,13 +354,13 @@ defmodule MyApp.TailwindTest do
     
     # After
     assert {:ok, pid} = Defdo.TailwindPort.start_link(opts)
-    assert :ok = Defdo.TailwindPort.wait_until_ready(:test_port, 5000)
+    assert :ok = Defdo.TailwindPort.Standalone.wait_until_ready(:test_port, 5000)
     
     # Verify it's ready
-    assert Defdo.TailwindPort.ready?(:test_port)
+    assert Defdo.TailwindPort.Standalone.ready?(:test_port)
     
     # Check health
-    assert {:ok, health} = Defdo.TailwindPort.health(:test_port)
+    assert {:ok, health} = Defdo.TailwindPort.Standalone.health(:test_port)
     assert health.port_ready
     assert health.port_active
   end
@@ -425,7 +425,7 @@ Process.sleep(2000)
 
 # Use
 {:ok, pid} = Defdo.TailwindPort.start_link(opts)
-:ok = Defdo.TailwindPort.wait_until_ready()
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready()
 ```
 
 ### Issue 4: Health Function Not Found
@@ -480,15 +480,15 @@ defmodule MigrationTest do
       {:ok, _pid} ->
         IO.puts("✅ Port started successfully")
         
-        case Defdo.TailwindPort.wait_until_ready(:migration_test, 10_000) do
+        case Defdo.TailwindPort.Standalone.wait_until_ready(:migration_test, 10_000) do
           :ok ->
             IO.puts("✅ Port ready")
             
-            if Defdo.TailwindPort.ready?(:migration_test) do
+            if Defdo.TailwindPort.Standalone.ready?(:migration_test) do
               IO.puts("✅ Ready check works")
             end
             
-            case Defdo.TailwindPort.health(:migration_test) do
+            case Defdo.TailwindPort.Standalone.health(:migration_test) do
               {:ok, health} ->
                 IO.puts("✅ Health check works")
                 IO.puts("   Uptime: #{health.uptime_seconds}s")

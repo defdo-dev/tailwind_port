@@ -16,34 +16,34 @@ defmodule Defdo.TailwindPort.Metrics do
       Supervisor.start_link(children, strategy: :one_for_one)
 
   The returned metrics include compilation timing, pool lifecycle counters,
-  and the derived KPIs emitted by `Defdo.TailwindPort.Optimized.get_stats/0`
-  via the `[:tailwind_port_optimized, :metrics, :snapshot]` event.
+  and the derived KPIs emitted by `Defdo.TailwindPort.Pool.get_stats/0`
+  via the `[:tailwind_port_pool, :metrics, :snapshot]` event.
 
-  Call `optimized_metrics/1` to customise prefixes or tag sets.
+  Call `pool_metrics/1` to customise prefixes or tag sets.
   """
 
   alias Telemetry.Metrics
 
   @doc """
-  Returns the default set of metrics that cover the optimized pooling layer.
+  Returns the default set of metrics that cover the pooling layer.
 
-  Equivalent to `optimized_metrics/1` with default options.
+  Equivalent to `pool_metrics/1` with default options.
   """
   @spec default_metrics() :: [Metrics.t()]
-  def default_metrics, do: optimized_metrics()
+  def default_metrics, do: pool_metrics()
 
   @doc """
   Builds telemetry metric definitions for the optimized TailwindPort layer.
 
   ## Options
 
-    * `:event_prefix` – override the event prefix (default: `[:tailwind_port_optimized]`).
+    * `:event_prefix` – override the event prefix (default: `[:tailwind_port_pool]`).
     * `:compile_tags` – tags to keep for compile events (default: `[:config_hash]`).
     * `:snapshot_tags` – tags to keep for snapshot events (default: `[:active_ports, :cache_size, :queue_size]`).
   """
-  @spec optimized_metrics(keyword()) :: [Metrics.t()]
-  def optimized_metrics(opts \\ []) do
-    prefix = Keyword.get(opts, :event_prefix, [:tailwind_port_optimized])
+  @spec pool_metrics(keyword()) :: [Metrics.t()]
+  def pool_metrics(opts \\ []) do
+    prefix = Keyword.get(opts, :event_prefix, [:tailwind_port_pool])
     compile_tags = Keyword.get(opts, :compile_tags, [:config_hash])
     snapshot_tags = Keyword.get(opts, :snapshot_tags, [:active_ports, :cache_size, :queue_size])
 

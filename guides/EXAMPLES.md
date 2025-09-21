@@ -32,7 +32,7 @@ defmodule MyApp.SimpleBuild do
     ])
     
     # Wait for completion
-    case Defdo.TailwindPort.wait_until_ready(:simple_build, 10_000) do
+    case Defdo.TailwindPort.Standalone.wait_until_ready(:simple_build, 10_000) do
       :ok -> 
         IO.puts("✅ CSS build completed successfully!")
         :ok
@@ -85,7 +85,7 @@ defmodule MyApp.DevWatcher do
     ]
     
     with {:ok, _pid} <- Defdo.TailwindPort.start_link(opts),
-         :ok <- Defdo.TailwindPort.wait_until_ready(port_name, 15_000) do
+         :ok <- Defdo.TailwindPort.Standalone.wait_until_ready(port_name, 15_000) do
       Logger.info("🎨 Tailwind watcher started successfully")
       {:ok, port_name}
     else
@@ -182,7 +182,7 @@ defmodule MyApp.TailwindManager do
         
         # Start async task to wait for readiness
         task = Task.async(fn ->
-          Defdo.TailwindPort.wait_until_ready(:phoenix_tailwind, 20_000)
+          Defdo.TailwindPort.Standalone.wait_until_ready(:phoenix_tailwind, 20_000)
         end)
         
         {:ok, %{mode: :watch, port_name: :phoenix_tailwind, startup_task: task}}
@@ -306,7 +306,7 @@ defmodule MyAppWeb.TailwindLive do
   end
   
   defp get_tailwind_health do
-    case Defdo.TailwindPort.health(:phoenix_tailwind) do
+    case Defdo.TailwindPort.Standalone.health(:phoenix_tailwind) do
       {:ok, health} -> health
       {:error, _} -> nil
     end
@@ -410,7 +410,7 @@ defmodule MyApp.EnvironmentBuilder do
     ]
     
     with {:ok, _pid} <- Defdo.TailwindPort.start_link(opts),
-         :ok <- Defdo.TailwindPort.wait_until_ready(config.port_name, config.timeout) do
+         :ok <- Defdo.TailwindPort.Standalone.wait_until_ready(config.port_name, config.timeout) do
       {:ok, config.port_name}
     end
   end
@@ -419,7 +419,7 @@ end
 
 ## Production Builds
 
-### Optimized Production Builder
+### Pooled Production Builder
 
 ```elixir
 defmodule MyApp.ProductionBuilder do
@@ -489,13 +489,13 @@ defmodule MyApp.ProductionBuilder do
     start_time = System.monotonic_time(:millisecond)
     
     with {:ok, _pid} <- Defdo.TailwindPort.start_link(opts),
-         :ok <- Defdo.TailwindPort.wait_until_ready(:prod_css_build, @build_timeout) do
+         :ok <- Defdo.TailwindPort.Standalone.wait_until_ready(:prod_css_build, @build_timeout) do
       
       end_time = System.monotonic_time(:millisecond)
       build_time = end_time - start_time
       
       # Get health stats
-      health = Defdo.TailwindPort.health(:prod_css_build)
+      health = Defdo.TailwindPort.Standalone.health(:prod_css_build)
       
       # Clean up
       Defdo.TailwindPort.terminate(:prod_css_build)
@@ -594,7 +594,7 @@ defmodule MyApp.RobustTailwind do
   
   def safe_operation(port_name, operation) do
     try do
-      case Defdo.TailwindPort.ready?(port_name) do
+      case Defdo.TailwindPort.Standalone.ready?(port_name) do
         true -> 
           operation.()
         false -> 
@@ -614,7 +614,7 @@ defmodule MyApp.RobustTailwind do
   end
   
   defp monitor_loop(port_name, callback) do
-    case Defdo.TailwindPort.health(port_name) do
+    case Defdo.TailwindPort.Standalone.health(port_name) do
       {:ok, health} ->
         callback.({:health_update, health})
         
@@ -738,7 +738,7 @@ defmodule MyApp.TailwindDashboard do
   end
   
   def handle_info(:health_check, state) do
-    case Defdo.TailwindPort.health(state.port_name) do
+    case Defdo.TailwindPort.Standalone.health(state.port_name) do
       {:ok, health} ->
         timestamp = System.system_time(:second)
         metric = Map.put(health, :timestamp, timestamp)

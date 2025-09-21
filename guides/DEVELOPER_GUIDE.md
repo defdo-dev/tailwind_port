@@ -82,10 +82,10 @@ TailwindPort is a production-ready Elixir library that provides a robust interfa
    ])
    
    # Wait for it to be ready
-   :ok = Defdo.TailwindPort.wait_until_ready(:my_tailwind)
+   :ok = Defdo.TailwindPort.Standalone.wait_until_ready(:my_tailwind)
    
    # Check health
-   {:ok, health} = Defdo.TailwindPort.health(:my_tailwind)
+   {:ok, health} = Defdo.TailwindPort.Standalone.health(:my_tailwind)
    ```
 
 For detailed setup instructions, see [QUICK_START.md](./QUICK_START.md).
@@ -175,12 +175,12 @@ The TailwindPort GenServer maintains state including:
 ])
 
 # Wait for readiness
-:ok = Defdo.TailwindPort.wait_until_ready(:dev_tailwind)
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(:dev_tailwind)
 
 # Monitor health during development
 Task.start(fn ->
   :timer.sleep(5000)
-  {:ok, health} = Defdo.TailwindPort.health(:dev_tailwind)
+  {:ok, health} = Defdo.TailwindPort.Standalone.health(:dev_tailwind)
   IO.puts("CSS builds: #{health.css_builds}")
 end)
 ```
@@ -246,7 +246,7 @@ Always handle errors properly:
 # ✅ Good: Proper error handling
 case Defdo.TailwindPort.start_link(opts) do
   {:ok, pid} -> 
-    case Defdo.TailwindPort.wait_until_ready() do
+    case Defdo.TailwindPort.Standalone.wait_until_ready() do
       :ok -> {:ok, pid}
       {:error, :timeout} -> {:error, :startup_timeout}
     end
@@ -353,8 +353,8 @@ defmodule MyApp.TailwindTest do
       ]
       
       assert {:ok, pid} = Defdo.TailwindPort.start_link(opts)
-      assert :ok = Defdo.TailwindPort.wait_until_ready(:test_tailwind, 5000)
-      assert Defdo.TailwindPort.ready?(:test_tailwind)
+      assert :ok = Defdo.TailwindPort.Standalone.wait_until_ready(:test_tailwind, 5000)
+      assert Defdo.TailwindPort.Standalone.ready?(:test_tailwind)
       
       # Cleanup
       GenServer.stop(pid)
@@ -363,7 +363,7 @@ defmodule MyApp.TailwindTest do
     test "health monitoring works" do
       # ... setup ...
       
-      assert {:ok, health} = Defdo.TailwindPort.health(:test_tailwind)
+      assert {:ok, health} = Defdo.TailwindPort.Standalone.health(:test_tailwind)
       assert health.port_ready
       assert health.port_active
       assert is_integer(health.uptime_seconds)
@@ -401,7 +401,7 @@ defmodule MyApp.TailwindIntegrationTest do
     ]
     
     {:ok, pid} = Defdo.TailwindPort.start_link(opts)
-    :ok = Defdo.TailwindPort.wait_until_ready(:integration_test)
+    :ok = Defdo.TailwindPort.Standalone.wait_until_ready(:integration_test)
     
     # Wait for build to complete
     :timer.sleep(2000)
@@ -495,7 +495,7 @@ export TAILWIND_BINARY_PATH="${RELEASE_ROOT}/bin/tailwindcss"
 # For load balancers and monitoring
 defmodule MyApp.HealthCheck do
   def tailwind_health do
-    case Defdo.TailwindPort.health(:app_tailwind) do
+    case Defdo.TailwindPort.Standalone.health(:app_tailwind) do
       {:ok, health} when health.port_ready and health.port_active ->
         {:ok, "healthy"}
       {:ok, health} ->
@@ -547,7 +547,7 @@ defmodule MyApp.Telemetry do
   end
 
   def dispatch_tailwind_health do
-    case Defdo.TailwindPort.health(:app_tailwind) do
+    case Defdo.TailwindPort.Standalone.health(:app_tailwind) do
       {:ok, health} ->
         :telemetry.execute(
           [:tailwind_port, :health],
@@ -593,14 +593,14 @@ config :logger, level: :debug
 Logger.configure(level: :debug)
 
 # Check detailed health information
-{:ok, health} = Defdo.TailwindPort.health(:app_tailwind)
+{:ok, health} = Defdo.TailwindPort.Standalone.health(:app_tailwind)
 IO.inspect(health, label: "TailwindPort Health")
 
 # Monitor port activity
 Task.start(fn ->
   Stream.interval(1000)
   |> Enum.each(fn _ ->
-    {:ok, health} = Defdo.TailwindPort.health(:app_tailwind)
+    {:ok, health} = Defdo.TailwindPort.Standalone.health(:app_tailwind)
     IO.puts("Activity: #{health.last_activity_seconds_ago}s ago")
   end)
 end)
@@ -616,10 +616,10 @@ GenServer.whereis(:app_tailwind)
 :sys.get_state(:app_tailwind)
 
 # Check port readiness
-Defdo.TailwindPort.ready?(:app_tailwind)
+Defdo.TailwindPort.Standalone.ready?(:app_tailwind)
 
 # Get detailed health metrics
-Defdo.TailwindPort.health(:app_tailwind)
+Defdo.TailwindPort.Standalone.health(:app_tailwind)
 
 # Validate configuration
 Defdo.TailwindPort.Config.validate_config("./tailwind.config.js")

@@ -60,28 +60,43 @@ mix deps.get
 ### Basic Usage
 
 ```elixir
-# Start a TailwindPort process
-{:ok, pid} = Defdo.TailwindPort.start_link([
-  opts: ["-i", "./assets/css/app.css", 
-         "--content", "./priv/static/html/**/*.{html,js}", 
-         "-c", "./assets/tailwind.config.js", 
-         "--watch"]
-])
+# Start the pooled Tailwind manager (usually in your supervision tree)
+{:ok, _pid} = Defdo.TailwindPort.start_link()
 
-# Wait for the port to be ready (replaces unreliable Process.sleep)
-:ok = Defdo.TailwindPort.wait_until_ready()
+opts = [
+  input: "./assets/css/app.css",
+  output: "./priv/static/css/app.css",
+  content: "./lib/**/*.{ex,heex}",
+  config: "./assets/tailwind.config.js"
+]
 
-# Check if port is ready
-if Defdo.TailwindPort.ready?() do
-  IO.puts("Port is ready for CSS processing!")
-end
+html = ~s(<div class="text-red-500">Hello</div>)
+
+{:ok, result} = Defdo.TailwindPort.compile(opts, html)
+IO.puts(result.compiled_css)
+
+# Pool-level KPIs and telemetry-ready metrics
+stats = Defdo.TailwindPort.get_stats()
+IO.inspect(stats.derived_metrics)
+```
+
+### Legacy Single-Port API
+
+If you need direct control over a single Tailwind CLI process (for example when
+embedding the port in a custom supervision tree), use the `Standalone` module:
+
+```elixir
+{:ok, pid} = Defdo.TailwindPort.Standalone.start_link(opts: ["-w"], name: :legacy_port)
+
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(:legacy_port)
+health = Defdo.TailwindPort.Standalone.health(:legacy_port)
 ```
 
 ### Health Monitoring
 
 ```elixir
 # Get comprehensive health metrics
-health = Defdo.TailwindPort.health()
+health = Defdo.TailwindPort.Standalone.health()
 
 IO.inspect(health)
 # %{

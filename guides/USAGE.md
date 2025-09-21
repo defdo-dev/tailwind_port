@@ -27,10 +27,10 @@ end
 )
 
 # Check if the port is ready
-:ok = Defdo.TailwindPort.wait_until_ready(pid, 5000)
+:ok = Defdo.TailwindPort.Standalone.wait_until_ready(pid, 5000)
 
 # Get health information
-health = Defdo.TailwindPort.health(pid)
+health = Defdo.TailwindPort.Standalone.health(pid)
 ```
 
 ## Configuration
@@ -86,16 +86,16 @@ TailwindPort includes comprehensive telemetry integration:
 state = Defdo.TailwindPort.state(:my_tailwind)
 
 # Wait for readiness
-case Defdo.TailwindPort.wait_until_ready(:my_tailwind, 5000) do
+case Defdo.TailwindPort.Standalone.wait_until_ready(:my_tailwind, 5000) do
   :ok -> IO.puts("Ready!")
   {:error, :timeout} -> IO.puts("Timed out waiting")
 end
 
 # Check readiness
-ready? = Defdo.TailwindPort.ready?(:my_tailwind, 1000)
+ready? = Defdo.TailwindPort.Standalone.ready?(:my_tailwind, 1000)
 
 # Get health metrics
-health = Defdo.TailwindPort.health(:my_tailwind)
+health = Defdo.TailwindPort.Standalone.health(:my_tailwind)
 ```
 
 ### File System Operations
@@ -130,7 +130,7 @@ end
 The health system provides detailed metrics:
 
 ```elixir
-health = Defdo.TailwindPort.health(:my_tailwind)
+health = Defdo.TailwindPort.Standalone.health(:my_tailwind)
 
 # Health structure:
 %{
@@ -191,7 +191,7 @@ state = Defdo.TailwindPort.state(:main_tailwind)
 
 ```elixir
 # Always handle timeout cases
-case Defdo.TailwindPort.wait_until_ready(:main_tailwind, 5000) do
+case Defdo.TailwindPort.Standalone.wait_until_ready(:main_tailwind, 5000) do
   :ok -> 
     proceed_with_build()
   {:error, :timeout} -> 
@@ -204,7 +204,7 @@ end
 
 ```elixir
 # Regular health monitoring
-health = Defdo.TailwindPort.health(:main_tailwind)
+health = Defdo.TailwindPort.Standalone.health(:main_tailwind)
 if health.errors > 0 do
   Logger.warning("Tailwind has #{health.errors} errors")
 end
@@ -242,6 +242,6 @@ state = Defdo.TailwindPort.state(:my_tailwind)
 IO.inspect(state, label: "TailwindPort State")
 
 # Check health metrics
-health = Defdo.TailwindPort.health(:my_tailwind)
+health = Defdo.TailwindPort.Standalone.health(:my_tailwind)
 IO.inspect(health, label: "Health Metrics")
 ```

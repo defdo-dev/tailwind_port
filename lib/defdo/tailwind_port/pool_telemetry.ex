@@ -1,6 +1,6 @@
-defmodule Defdo.TailwindPort.OptimizedTelemetry do
+defmodule Defdo.TailwindPort.PoolTelemetry do
   @moduledoc """
-  Comprehensive telemetry system for TailwindPort.Optimized.
+  Comprehensive telemetry system for TailwindPort.Pool.
 
   This module provides advanced observability features including:
   - Real-time performance metrics
@@ -12,52 +12,52 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
   ## Events Emitted
 
   ### Compilation Events
-  - `[:tailwind_port_optimized, :compile, :start]` - Compilation started
-  - `[:tailwind_port_optimized, :compile, :stop]` - Compilation completed successfully
-  - `[:tailwind_port_optimized, :compile, :error]` - Compilation failed
+  - `[:tailwind_port_pool, :compile, :start]` - Compilation started
+  - `[:tailwind_port_pool, :compile, :stop]` - Compilation completed successfully
+  - `[:tailwind_port_pool, :compile, :error]` - Compilation failed
 
   ### Pool Management Events
-  - `[:tailwind_port_optimized, :pool, :port_created]` - New port created
-  - `[:tailwind_port_optimized, :pool, :port_reused]` - Existing port reused
-  - `[:tailwind_port_optimized, :pool, :port_terminated]` - Port terminated
-  - `[:tailwind_port_optimized, :pool, :exhausted]` - Pool reached capacity limit
+  - `[:tailwind_port_pool, :pool, :port_created]` - New port created
+  - `[:tailwind_port_pool, :pool, :port_reused]` - Existing port reused
+  - `[:tailwind_port_pool, :pool, :port_terminated]` - Port terminated
+  - `[:tailwind_port_pool, :pool, :exhausted]` - Pool reached capacity limit
 
   ### Maintenance Events
-  - `[:tailwind_port_optimized, :maintenance, :cleanup_completed]` - Cleanup cycle completed
+  - `[:tailwind_port_pool, :maintenance, :cleanup_completed]` - Cleanup cycle completed
 
   ### KPI Snapshot
-  - `[:tailwind_port_optimized, :metrics, :snapshot]` – Derived KPIs emitted by
-    `Defdo.TailwindPort.Optimized.get_stats/0`. Hook into this event via
+  - `[:tailwind_port_pool, :metrics, :snapshot]` – Derived KPIs emitted by
+    `Defdo.TailwindPort.Pool.get_stats/0`. Hook into this event via
     `Defdo.TailwindPort.Metrics` to export gauges to Prometheus, StatsD, or
     other telemetry reporters.
 
   ## Usage
 
       # Attach comprehensive monitoring
-      TailwindPort.OptimizedTelemetry.attach_default_handlers()
+      TailwindPort.PoolTelemetry.attach_default_handlers()
 
       # Attach custom handlers
-      TailwindPort.OptimizedTelemetry.attach_handler(:my_monitor, &MyModule.handle_event/4)
+      TailwindPort.PoolTelemetry.attach_handler(:my_monitor, &MyModule.handle_event/4)
 
       # Get current metrics
-      metrics = TailwindPort.OptimizedTelemetry.get_current_metrics()
+      metrics = TailwindPort.PoolTelemetry.get_current_metrics()
 
       # Generate performance report
-      TailwindPort.OptimizedTelemetry.generate_report()
+      TailwindPort.PoolTelemetry.generate_report()
   """
 
   require Logger
 
   @events [
-    [:tailwind_port_optimized, :compile, :start],
-    [:tailwind_port_optimized, :compile, :stop],
-    [:tailwind_port_optimized, :compile, :error],
-    [:tailwind_port_optimized, :pool, :port_created],
-    [:tailwind_port_optimized, :pool, :port_reused],
-    [:tailwind_port_optimized, :pool, :port_terminated],
-    [:tailwind_port_optimized, :pool, :exhausted],
-    [:tailwind_port_optimized, :maintenance, :cleanup_completed],
-    [:tailwind_port_optimized, :metrics, :snapshot]
+    [:tailwind_port_pool, :compile, :start],
+    [:tailwind_port_pool, :compile, :stop],
+    [:tailwind_port_pool, :compile, :error],
+    [:tailwind_port_pool, :pool, :port_created],
+    [:tailwind_port_pool, :pool, :port_reused],
+    [:tailwind_port_pool, :pool, :port_terminated],
+    [:tailwind_port_pool, :pool, :exhausted],
+    [:tailwind_port_pool, :maintenance, :cleanup_completed],
+    [:tailwind_port_pool, :metrics, :snapshot]
   ]
 
   @doc """
@@ -75,7 +75,7 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
       }
     }
 
-    attach_handler("optimized_default_monitor", &handle_default_event/4, handler_config)
+    attach_handler("tailwind_pool_default_monitor", &handle_default_event/4, handler_config)
   end
 
   @doc """
@@ -118,7 +118,7 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     metrics = get_current_metrics()
 
     """
-    🚀 TailwindPort Optimized Performance Report
+    🚀 TailwindPort Pool Performance Report
     ==========================================
 
     ## Compilation Statistics
@@ -175,13 +175,13 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     end
   end
 
-  defp update_metrics([:tailwind_port_optimized, :compile, :start], measurements, metadata) do
+  defp update_metrics([:tailwind_port_pool, :compile, :start], measurements, metadata) do
     update_counter(:total_compilations)
     update_gauge(:last_compilation_start, measurements.system_time)
     track_config_variation(metadata.config_hash)
   end
 
-  defp update_metrics([:tailwind_port_optimized, :compile, :stop], measurements, metadata) do
+  defp update_metrics([:tailwind_port_pool, :compile, :stop], measurements, metadata) do
     update_counter(:successful_compilations)
     update_timing(:compilation_time, measurements.duration)
 
@@ -190,26 +190,26 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     end
   end
 
-  defp update_metrics([:tailwind_port_optimized, :compile, :error], measurements, _metadata) do
+  defp update_metrics([:tailwind_port_pool, :compile, :error], measurements, _metadata) do
     update_counter(:failed_compilations)
     update_counter(:total_errors)
     update_timing(:error_compilation_time, measurements.duration)
   end
 
-  defp update_metrics([:tailwind_port_optimized, :pool, :port_created], measurements, _metadata) do
+  defp update_metrics([:tailwind_port_pool, :pool, :port_created], measurements, _metadata) do
     update_counter(:ports_created)
     update_timing(:port_creation_time, measurements.creation_duration)
     update_gauge(:current_pool_size, measurements.pool_size)
     update_max(:peak_pool_size, measurements.pool_size)
   end
 
-  defp update_metrics([:tailwind_port_optimized, :pool, :port_reused], measurements, _metadata) do
+  defp update_metrics([:tailwind_port_pool, :pool, :port_reused], measurements, _metadata) do
     update_counter(:port_reuses)
     update_timing(:port_age, measurements.port_age_ms)
   end
 
   defp update_metrics(
-         [:tailwind_port_optimized, :pool, :port_terminated],
+         [:tailwind_port_pool, :pool, :port_terminated],
          measurements,
          _metadata
        ) do
@@ -217,13 +217,13 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     update_timing(:port_lifetime, measurements.port_lifetime)
   end
 
-  defp update_metrics([:tailwind_port_optimized, :pool, :exhausted], measurements, _metadata) do
+  defp update_metrics([:tailwind_port_pool, :pool, :exhausted], measurements, _metadata) do
     update_counter(:pool_exhaustions)
     update_gauge(:pool_utilization, measurements.pool_size / measurements.max_size)
   end
 
   defp update_metrics(
-         [:tailwind_port_optimized, :maintenance, :cleanup_completed],
+         [:tailwind_port_pool, :maintenance, :cleanup_completed],
          measurements,
          _metadata
        ) do
@@ -232,7 +232,7 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     update_gauge(:current_pool_size, measurements.active_ports)
   end
 
-  defp update_metrics([:tailwind_port_optimized, :metrics, :snapshot], measurements, _metadata) do
+  defp update_metrics([:tailwind_port_pool, :metrics, :snapshot], measurements, _metadata) do
     update_gauge(:reuse_rate, measurements.reuse_rate)
     update_gauge(:avg_port_lifetime_ms, measurements.avg_port_lifetime_ms)
     update_gauge(:average_compilation_time_ms, measurements.average_compilation_time_ms)
@@ -242,8 +242,8 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
 
   defp update_metrics(_, _, _), do: :ok
 
-  defp log_event([:tailwind_port_optimized, :compile, :start], _measurements, metadata, level) do
-    Logger.log(level, "🚀 Optimized compilation started", %{
+  defp log_event([:tailwind_port_pool, :compile, :start], _measurements, metadata, level) do
+    Logger.log(level, "🚀 Pool compilation started", %{
       operation_id: metadata.operation_id,
       config_hash: metadata.config_hash,
       priority: metadata.priority,
@@ -251,8 +251,8 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     })
   end
 
-  defp log_event([:tailwind_port_optimized, :compile, :stop], measurements, metadata, level) do
-    Logger.log(level, "✅ Optimized compilation completed", %{
+  defp log_event([:tailwind_port_pool, :compile, :stop], measurements, metadata, level) do
+    Logger.log(level, "✅ Pool compilation completed", %{
       operation_id: metadata.operation_id,
       duration_ms: div(measurements.duration, 1000),
       port_reused: metadata.port_reused,
@@ -260,15 +260,15 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     })
   end
 
-  defp log_event([:tailwind_port_optimized, :compile, :error], measurements, metadata, _level) do
-    Logger.log(:error, "❌ Optimized compilation failed", %{
+  defp log_event([:tailwind_port_pool, :compile, :error], measurements, metadata, _level) do
+    Logger.log(:error, "❌ Pool compilation failed", %{
       operation_id: metadata.operation_id,
       duration_ms: div(measurements.duration, 1000),
       error: metadata.error
     })
   end
 
-  defp log_event([:tailwind_port_optimized, :pool, :port_created], measurements, metadata, level) do
+  defp log_event([:tailwind_port_pool, :pool, :port_created], measurements, metadata, level) do
     Logger.log(level, "🔧 New port created in pool", %{
       config_hash: metadata.config_hash,
       creation_duration_ms: div(measurements.creation_duration, 1000),
@@ -276,7 +276,7 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
     })
   end
 
-  defp log_event([:tailwind_port_optimized, :pool, :exhausted], measurements, metadata, _level) do
+  defp log_event([:tailwind_port_pool, :pool, :exhausted], measurements, metadata, _level) do
     Logger.log(:warning, "⚠️  Port pool exhausted", %{
       config_hash: metadata.config_hash,
       pool_size: measurements.pool_size,
@@ -326,12 +326,12 @@ defmodule Defdo.TailwindPort.OptimizedTelemetry do
 
   defp emit_alert(alert_type, data) do
     :telemetry.execute(
-      [:tailwind_port_optimized, :alert, alert_type],
+      [:tailwind_port_pool, :alert, alert_type],
       %{severity: alert_severity(alert_type)},
       data
     )
 
-    Logger.warning("🚨 TailwindPort Optimized Alert: #{alert_type}", data)
+    Logger.warning("🚨 TailwindPort Pool Alert: #{alert_type}", data)
   end
 
   defp alert_severity(:high_error_rate), do: :high
