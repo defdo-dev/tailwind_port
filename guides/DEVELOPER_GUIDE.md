@@ -532,17 +532,12 @@ defmodule MyApp.Telemetry do
   end
 
   def metrics do
-    [
-      # TailwindPort metrics
-      counter("tailwind_port.port.start"),
-      counter("tailwind_port.port.stop"),
-      counter("tailwind_port.port.output"),
-      counter("tailwind_port.css.build"),
-      counter("tailwind_port.error"),
-      last_value("tailwind_port.health.uptime_seconds"),
-      last_value("tailwind_port.health.total_outputs"),
-      last_value("tailwind_port.health.css_builds")
-    ]
+    # Inherit TailwindPort's default pooling KPIs and add any app-specific metrics.
+    Defdo.TailwindPort.Metrics.default_metrics() ++
+      [
+        counter("tailwind_port.port.start"),
+        counter("tailwind_port.port.stop")
+      ]
   end
 
   defp periodic_measurements do
