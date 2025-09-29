@@ -7,7 +7,7 @@ defmodule TailwindPort.MixProject do
   def project do
     [
       app: :tailwind_port,
-      version: "0.3.1",
+      version: "0.3.2",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -70,7 +70,7 @@ defmodule TailwindPort.MixProject do
         "Documentation" => "https://hexdocs.pm/tailwind_port"
       },
       maintainers: ["Defdo Team"],
-      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE guides),
+      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE CLAUDE.md guides),
       # Exclude the binary - will be downloaded
       exclude_patterns: ["priv/bin/tailwindcss"],
       keywords: [

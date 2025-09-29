@@ -86,7 +86,7 @@ defmodule Defdo.TailwindPort.ConfigManager do
 
       # With version configured
       config :tailwind_port, version: "3.3.0"
-      
+
       ConfigManager.get_version()
       # => "3.3.0"
 
@@ -124,7 +124,7 @@ defmodule Defdo.TailwindPort.ConfigManager do
 
       # With custom URL configured
       config :tailwind_port, url: "https://example.com/v$version/tailwindcss-$target"
-      
+
       ConfigManager.get_base_url()
       # => "https://example.com/v$version/tailwindcss-$target"
 
@@ -161,7 +161,7 @@ defmodule Defdo.TailwindPort.ConfigManager do
 
       # With explicit path configured
       config :tailwind_port, path: "/usr/local/bin/tailwindcss"
-      
+
       ConfigManager.get_binary_path()
       # => "/usr/local/bin/tailwindcss"
 

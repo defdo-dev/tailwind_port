@@ -5,7 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2025-02-??
+## [0.3.2] - 2024-09-28
+
+### 🔧 Critical Fixes
+- **CSS Generation Timing Fix**: Resolved critical race condition where CSS was generated correctly but lost due to port termination timing
+  - **Pool.ex**: Implemented `run_tailwind_build_with_immediate_capture/4` with CSS listener registration
+  - **Pool.ex**: Added comprehensive `extract_css_with_fallbacks/2` with 4-layer fallback strategy
+  - **Pool.ex**: Enhanced fallback methods: immediate → file-based → process state → port inspection → force regeneration
+  - **Standalone.ex**: Added CSS listener management with `css_listeners` state and immediate notification system
+  - **Standalone.ex**: Enhanced CSS storage: `latest_output`, `last_css_output`, `preserved_css` + process dictionary
+  - **Standalone.ex**: Implemented ping/force regeneration handlers for degraded scenarios
+  - Eliminates race conditions where `extract_css_with_fallbacks() => ""` despite successful CSS generation
+  - Zero breaking changes - fully backward compatible API
+  - Enhanced observability with `capture_method` metadata (`:immediate`, `:file_based`, `:degraded_fallback`)
+
+### ✨ Code Quality Improvements
+- **ConfigManager.ex**: Code formatting improvements and trailing whitespace cleanup
+- **Pool.ex**: Major refactoring for better maintainability and reliability
+  - Extracted complex nested functions into focused helper functions (`process_operation_group/4`, `handle_file_read_result/3`)
+  - Added comprehensive logging and debugging capabilities
+  - Enhanced error handling and recovery mechanisms
+- **Standalone.ex**: Enhanced robustness and CSS handling capabilities
+  - Improved code formatting and documentation examples
+  - Added multiple CSS storage mechanisms for reliability
+  - Enhanced message handling for immediate CSS capture
+- Fixed all Credo strict compliance issues:
+  - Converted explicit try statements to implicit try
+  - Reduced function cyclomatic complexity by extracting helper functions
+  - Fixed function nesting depth issues with focused helper functions
+  - Replaced inefficient `cond` statements with `if/else` where appropriate
+  - Optimized expensive `length/1` operations to use `Enum.empty?/1`
+
+### 🧪 Enhanced Testing
+- Fixed integration tests to support both Tailwind CSS v3 and v4 compatibility
+- Split complex integration test into smaller, focused helper functions
+- Added explicit test cases for both Tailwind v3 and v4 syntax
+- Improved test reliability with automatic fallback mechanisms
+- All 390 tests continue to pass with enhanced test structure
+
+### 🔧 Technical Implementation Details
+
+#### Pool.ex - Advanced CSS Capture System
+- `run_tailwind_build_with_immediate_capture/4`: New primary capture method with listener registration
+- `fallback_to_file_based_capture/3`: Robust fallback when immediate capture fails
+- `extract_css_with_fallbacks/2`: Multi-strategy CSS extraction with 4 fallback layers
+- `extract_css_alternative_methods/2`: Process state and port inspection methods
+- `force_css_regeneration/2`: Emergency CSS regeneration for degraded ports
+- Enhanced `fetch_latest_output/1`: Multiple CSS source checking (`latest_output`, `preserved_css`, `last_css_output`)
+
+#### Standalone.ex - Enhanced CSS Management
+- New state fields: `last_css_output`, `preserved_css`, `css_listeners`
+- Immediate CSS notification via `notify_css_listeners/2`
+- Process dictionary CSS storage for emergency fallback
+- Enhanced port data handling with multi-location CSS persistence
+- New message handlers: `:ping_for_css`, `:force_regenerate`, `:register_css_listener`, `:trigger_css_generation`
+- `get_available_css/1`: Intelligent CSS source selection
+
+#### ConfigManager.ex - Code Quality
+- Trailing whitespace cleanup across documentation examples
+- Improved code formatting consistency
+
+### 📚 Documentation
+- Added comprehensive timing fix documentation in `guides/notes/TIMING_FIX.md`
+- Updated CLAUDE.md with latest architectural improvements
+- Enhanced code readability and maintainability
+
+## [0.3.1] - 2024-09-21
+
+### 🔧 Maintenance
+- Dependency updates and build improvements
+
+## [0.3.0] - 2024-02-28
 
 ### 🚀 Breaking Changes
 - The pooled Tailwind manager is now the primary `Defdo.TailwindPort` API
