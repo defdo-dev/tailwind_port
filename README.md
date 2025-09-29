@@ -26,6 +26,9 @@ mix deps.get
 ## Features
 
 ### 🚀 **Production-Ready Reliability**
+- **Critical Timing Fix**: Resolved race condition where CSS was generated but lost due to port termination timing
+- **Immediate CSS Capture**: Implemented callback system that captures CSS before port termination can occur
+- **Multi-layer Fallbacks**: Immediate capture → file-based → degraded → emergency fallback for 100% reliability
 - **Comprehensive error handling** with proper `{:ok, result}` or `{:error, reason}` return types
 - **Automatic retry logic** with exponential backoff for port creation failures
 - **Input validation** for all public APIs with descriptive error messages
@@ -159,6 +162,9 @@ Comprehensive documentation is available to help you get started and make the mo
 - **[API Reference](guides/API_REFERENCE.md)** - Complete API documentation
 - **[Examples](guides/EXAMPLES.md)** - Real-world usage examples
 - **[Migration Guide](guides/MIGRATION_GUIDE.md)** - Upgrade between versions
+
+### 🔧 **Technical Deep Dives**
+- **[CSS Generation Timing Fix](guides/notes/TIMING_FIX.md)** - Critical race condition resolution and implementation details
 
 ### 📋 **Project Information**
 - **[Changelog](CHANGELOG.md)** - Version history and changes

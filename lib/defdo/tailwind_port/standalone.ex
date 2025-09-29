@@ -22,8 +22,8 @@ defmodule Defdo.TailwindPort.Standalone do
 
       # Start a TailwindPort process
       {:ok, pid} = Defdo.TailwindPort.start_link([
-        opts: ["-i", "./assets/css/app.css", 
-               "--content", "./lib/**/*.{ex,heex}", 
+        opts: ["-i", "./assets/css/app.css",
+               "--content", "./lib/**/*.{ex,heex}",
                "-o", "./priv/static/css/app.css"]
       ])
 
@@ -35,9 +35,9 @@ defmodule Defdo.TailwindPort.Standalone do
       # Start with watch mode for automatic rebuilds
       {:ok, pid} = Defdo.TailwindPort.start_link([
         name: :dev_tailwind,
-        opts: ["-i", "./assets/css/app.css", 
-               "--content", "./lib/**/*.{ex,heex}", 
-               "-o", "./priv/static/css/app.css", 
+        opts: ["-i", "./assets/css/app.css",
+               "--content", "./lib/**/*.{ex,heex}",
+               "-o", "./priv/static/css/app.css",
                "--watch"]
       ])
 
@@ -50,15 +50,15 @@ defmodule Defdo.TailwindPort.Standalone do
 
       # One-time build with minification
       {:ok, pid} = Defdo.TailwindPort.start_link([
-        opts: ["-i", "./assets/css/app.css", 
-               "--content", "./lib/**/*.{ex,heex}", 
-               "-o", "./priv/static/css/app.css", 
+        opts: ["-i", "./assets/css/app.css",
+               "--content", "./lib/**/*.{ex,heex}",
+               "-o", "./priv/static/css/app.css",
                "--minify"]
       ])
 
       # Wait for build completion
       :ok = Defdo.TailwindPort.wait_until_ready()
-      
+
       # Build is complete when port becomes ready
 
   ## Configuration Options
@@ -70,7 +70,7 @@ defmodule Defdo.TailwindPort.Standalone do
 
   ### CLI Options
     * `-i`, `--input` - Input CSS file path
-    * `-o`, `--output` - Output CSS file path  
+    * `-o`, `--output` - Output CSS file path
     * `-w`, `--watch` - Watch for changes and rebuild automatically
     * `-p`, `--poll` - Use polling instead of filesystem events
     * `--content` - Content paths for unused class removal
@@ -84,11 +84,11 @@ defmodule Defdo.TailwindPort.Standalone do
   All functions return proper `{:ok, result}` or `{:error, reason}` tuples:
 
       case Defdo.TailwindPort.new(:my_port, opts: ["-i", "input.css"]) do
-        {:ok, state} -> 
+        {:ok, state} ->
           IO.puts("Port created successfully!")
-        {:error, :max_retries_exceeded} -> 
+        {:error, :max_retries_exceeded} ->
           IO.puts("Failed to create port after retries")
-        {:error, reason} -> 
+        {:error, reason} ->
           IO.puts("Error: \#{inspect(reason)}")
       end
 
@@ -110,7 +110,7 @@ defmodule Defdo.TailwindPort.Standalone do
   The module emits several telemetry events for monitoring:
 
   - `[:tailwind_port, :css, :done]` - CSS compilation completed
-  - `[:tailwind_port, :other, :done]` - Other port output received  
+  - `[:tailwind_port, :other, :done]` - Other port output received
   - `[:tailwind_port, :port, :exit]` - Port process exited
 
   ## Best Practices
@@ -151,12 +151,15 @@ defmodule Defdo.TailwindPort.Standalone do
       %{
         port: nil,
         latest_output: nil,
+        last_css_output: nil,
+        preserved_css: nil,
         exit_status: nil,
         fs: FS.random_fs(),
         retry_count: 0,
         port_ready: false,
         port_monitor_ref: nil,
-        health: Health.create_initial_health()
+        health: Health.create_initial_health(),
+        css_listeners: []
       }
       |> ProcessManager.initialize_state()
 
@@ -170,12 +173,15 @@ defmodule Defdo.TailwindPort.Standalone do
       %{
         port: nil,
         latest_output: nil,
+        last_css_output: nil,
+        preserved_css: nil,
         exit_status: nil,
         fs: FS.random_fs(),
         retry_count: 0,
         port_ready: false,
         port_monitor_ref: nil,
-        health: Health.create_initial_health()
+        health: Health.create_initial_health(),
+        css_listeners: []
       }
       |> ProcessManager.initialize_state()
 
@@ -335,7 +341,7 @@ defmodule Defdo.TailwindPort.Standalone do
       ready_processes = [:dev, :prod, :test]
       |> Enum.filter(&TailwindPort.ready?/1)
       |> length()
-      
+
       IO.puts("\#{ready_processes} processes ready")
 
   ## Notes
@@ -380,17 +386,17 @@ defmodule Defdo.TailwindPort.Standalone do
 
       # With custom timeout
       case TailwindPort.wait_until_ready(TailwindPort, 30_000) do
-        :ok -> 
+        :ok ->
           IO.puts("Ready after waiting")
-        {:error, :timeout} -> 
+        {:error, :timeout} ->
           IO.puts("Timed out waiting for readiness")
       end
 
       # Named process with error handling
       {:ok, _pid} = TailwindPort.start_link(name: :my_build, opts: opts)
-      
+
       case TailwindPort.wait_until_ready(:my_build, 15_000) do
-        :ok -> 
+        :ok ->
           # Proceed with operations that require ready port
           trigger_css_build()
         {:error, :timeout} ->
@@ -651,7 +657,24 @@ defmodule Defdo.TailwindPort.Standalone do
         %{port: port, data: data}
       )
 
-      {:noreply, %{new_state | latest_output: String.trim(data)}}
+      css_output = String.trim(data)
+
+      # Store CSS immediately in multiple places to prevent loss
+      persistent_state = %{
+        new_state
+        | latest_output: css_output,
+          last_css_output: css_output,
+          preserved_css: css_output
+      }
+
+      # Store in process dictionary for alternative extraction
+      Process.put(:tailwind_css_output, css_output)
+      Process.put(:css_generation_timestamp, System.monotonic_time(:millisecond))
+
+      # Immediately notify all registered CSS listeners
+      notify_css_listeners(persistent_state.css_listeners, css_output)
+
+      {:noreply, persistent_state}
     else
       :telemetry.execute(
         [:tailwind_port, :other, :done],
@@ -702,9 +725,150 @@ defmodule Defdo.TailwindPort.Standalone do
     {:noreply, new_state}
   end
 
+  def handle_info({:ping_for_css, ref, from}, state) do
+    # Try multiple CSS sources
+    css =
+      state.preserved_css ||
+        state.last_css_output ||
+        state.latest_output ||
+        Process.get(:tailwind_css_output) ||
+        ""
+
+    send(from, {:css_response, ref, css})
+    {:noreply, state}
+  end
+
+  def handle_info({:force_regenerate, from}, state) do
+    # Intentar forzar regeneración de CSS
+    case state do
+      %{preserved_css: css} when is_binary(css) and css != "" ->
+        send(from, {:regenerated_css, css})
+        {:noreply, state}
+
+      %{port: port, last_css_output: css}
+      when not is_nil(port) and is_binary(css) and css != "" ->
+        send(from, {:regenerated_css, css})
+        {:noreply, state}
+
+      %{port: port, latest_output: css} when not is_nil(port) and is_binary(css) and css != "" ->
+        send(from, {:regenerated_css, css})
+        {:noreply, state}
+
+      %{port: port} when not is_nil(port) ->
+        try do
+          Port.command(port, "\n")
+          send(from, {:regeneration_failed, :no_css_available})
+        rescue
+          error ->
+            send(from, {:regeneration_failed, {:port_error, error}})
+        end
+
+        {:noreply, state}
+
+      _ ->
+        # No hay puerto disponible
+        send(from, {:regeneration_failed, :no_port})
+        {:noreply, state}
+    end
+  end
+
+  # Handle registration of CSS listeners from Pool
+  def handle_info({:register_css_listener, listener_pid, capture_ref, operation_id}, state) do
+    Logger.debug(
+      "Standalone: Registering CSS listener #{inspect(listener_pid)} for operation #{inspect(operation_id)}"
+    )
+
+    listener = %{
+      pid: listener_pid,
+      ref: capture_ref,
+      operation_id: operation_id,
+      registered_at: System.monotonic_time(:millisecond)
+    }
+
+    new_listeners = [listener | state.css_listeners]
+    new_state = %{state | css_listeners: new_listeners}
+
+    {:noreply, new_state}
+  end
+
+  # Handle CSS generation trigger from Pool
+  def handle_info({:trigger_css_generation, from}, state) do
+    Logger.debug("Standalone: CSS generation trigger received from #{inspect(from)}")
+
+    # If we already have CSS available, send it immediately
+    case get_available_css(state) do
+      css when is_binary(css) and css != "" ->
+        Logger.debug("Standalone: Sending existing CSS immediately (#{byte_size(css)} bytes)")
+        notify_css_listeners(state.css_listeners, css)
+        {:noreply, state}
+
+      _ ->
+        Logger.debug("Standalone: No existing CSS, will notify when generated")
+        # CSS will be sent when generated in handle_info({port, {:data, data}})
+        {:noreply, state}
+    end
+  end
+
   def handle_info(msg, state) do
     Logger.info("Unhandled message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  # Notify all registered CSS listeners with the generated CSS
+  defp notify_css_listeners([], _css), do: :ok
+
+  defp notify_css_listeners(listeners, css) when is_binary(css) and css != "" do
+    Logger.debug(
+      "Standalone: Notifying #{length(listeners)} CSS listeners with #{byte_size(css)} bytes"
+    )
+
+    Enum.each(listeners, fn listener ->
+      try do
+        send(listener.pid, {:css_generated, listener.ref, css})
+
+        Logger.debug(
+          "Standalone: CSS sent to listener #{inspect(listener.pid)} for operation #{inspect(listener.operation_id)}"
+        )
+      rescue
+        error ->
+          Logger.warning(
+            "Standalone: Failed to notify CSS listener #{inspect(listener.pid)}: #{inspect(error)}"
+          )
+      end
+    end)
+  end
+
+  defp notify_css_listeners(listeners, _invalid_css) do
+    Logger.warning("Standalone: Invalid CSS for #{length(listeners)} listeners")
+
+    Enum.each(listeners, fn listener ->
+      try do
+        send(listener.pid, {:css_generation_failed, listener.ref, :invalid_css})
+      rescue
+        error ->
+          Logger.warning(
+            "Standalone: Failed to notify CSS failure to listener #{inspect(listener.pid)}: #{inspect(error)}"
+          )
+      end
+    end)
+  end
+
+  # Get available CSS from any source in order of preference
+  defp get_available_css(state) do
+    cond do
+      is_binary(state.preserved_css) and state.preserved_css != "" ->
+        state.preserved_css
+
+      is_binary(state.last_css_output) and state.last_css_output != "" ->
+        state.last_css_output
+
+      is_binary(state.latest_output) and state.latest_output != "" ->
+        state.latest_output
+
+      true ->
+        # Try process dictionary as last resort
+        Process.get(:tailwind_css_output) || ""
+    end
   end
 
   defp warn_if_orphaned(port_info) do
