@@ -550,11 +550,10 @@ defmodule Defdo.TailwindPort.Pool do
     with {:ok, port_info, state} <- ensure_fs_state(port_info, state, operation),
          {:ok, working_paths} <- prepare_working_files(port_info),
          :ok <- write_operation_content(working_paths, operation.content) do
-      case run_tailwind_build_with_immediate_capture(
+      case fallback_to_file_based_capture(
              port_info,
              working_paths,
-             state.options,
-             operation
+             state.options
            ) do
         {:ok, build_info} ->
           finalize_compilation(port_info, state, readiness, build_info, operation)
@@ -652,65 +651,6 @@ defmodule Defdo.TailwindPort.Pool do
     File.write(content_path, content)
   end
 
-  defp run_tailwind_build(port_info, working_paths, options) do
-    output_path = working_paths.output_path
-    previous_mtime = Map.get(port_info, :last_output_mtime)
-    timeout_ms = Keyword.get(options, :compile_timeout_ms, 5_000)
-
-    if is_nil(output_path) do
-      css = extract_css_with_fallbacks(port_info.pid, options) |> dbg()
-
-      {:degraded,
-       %{
-         css: css,
-         output_path: nil,
-         new_mtime: previous_mtime,
-         reason: :missing_output_path
-       }}
-    else
-      await_file_update(output_path, previous_mtime, timeout_ms)
-    end
-  end
-
-  # Captures CSS immediately when generated, before port termination
-  defp run_tailwind_build_with_immediate_capture(port_info, working_paths, options, operation) do
-    timeout_ms = Keyword.get(options, :compile_timeout_ms, 5_000)
-    capture_ref = make_ref()
-
-    # Register this process to receive immediate CSS notifications from Standalone
-    register_css_listener(port_info.pid, self(), capture_ref, operation.id)
-
-    # Start CSS generation process
-    case trigger_css_generation(port_info.pid) do
-      :ok ->
-        # Wait for immediate CSS capture or timeout
-        receive do
-          {:css_generated, ^capture_ref, css_data} when is_binary(css_data) and css_data != "" ->
-            Logger.debug("Pool: Immediate CSS capture successful (#{byte_size(css_data)} bytes)")
-
-            {:ok,
-             %{
-               css: css_data,
-               output_path: working_paths.output_path,
-               new_mtime: System.os_time(:millisecond),
-               capture_method: :immediate
-             }}
-
-          {:css_generation_failed, ^capture_ref, reason} ->
-            Logger.debug("Pool: Immediate CSS capture failed, falling back to file-based")
-            fallback_to_file_based_capture(port_info, working_paths, options)
-        after
-          timeout_ms ->
-            Logger.debug("Pool: Immediate CSS capture timeout, falling back to file-based")
-            fallback_to_file_based_capture(port_info, working_paths, options)
-        end
-
-      {:error, reason} ->
-        Logger.debug("Pool: Failed to trigger CSS generation: #{inspect(reason)}")
-        fallback_to_file_based_capture(port_info, working_paths, options)
-    end
-  end
-
   # Fallback to original file-based capture when immediate capture fails
   defp fallback_to_file_based_capture(port_info, working_paths, options) do
     output_path = working_paths.output_path
@@ -739,26 +679,6 @@ defmodule Defdo.TailwindPort.Pool do
         {:error, reason} ->
           {:error, reason}
       end
-    end
-  end
-
-  # Register Pool process to receive immediate CSS notifications from Standalone
-  defp register_css_listener(standalone_pid, listener_pid, capture_ref, operation_id) do
-    try do
-      send(standalone_pid, {:register_css_listener, listener_pid, capture_ref, operation_id})
-      :ok
-    rescue
-      _ -> {:error, :registration_failed}
-    end
-  end
-
-  # Trigger CSS generation in the Standalone process
-  defp trigger_css_generation(standalone_pid) do
-    try do
-      send(standalone_pid, {:trigger_css_generation, self()})
-      :ok
-    rescue
-      _ -> {:error, :trigger_failed}
     end
   end
 
@@ -1399,40 +1319,36 @@ defmodule Defdo.TailwindPort.Pool do
 
   # Estrategia 3: Extraer CSS inspeccionando el estado del puerto directamente
   defp extract_css_from_process_state(pid) do
-    try do
-      case Process.info(pid, [:dictionary, :message_queue_len]) do
-        [{:dictionary, dict}, {:message_queue_len, _}] ->
-          # Buscar CSS en el diccionario del proceso
-          find_css_in_process_dictionary(dict)
+    case Process.info(pid, [:dictionary, :message_queue_len]) do
+      [{:dictionary, dict}, {:message_queue_len, _}] ->
+        # Buscar CSS en el diccionario del proceso
+        find_css_in_process_dictionary(dict)
 
-        _ ->
-          nil
-      end
-    rescue
-      _ -> nil
+      _ ->
+        nil
     end
+  rescue
+    _ -> nil
   end
 
   # Estrategia 4: Inspección de puerto con timeout reducido
   defp extract_css_from_port_inspection(pid, options) do
     timeout = Keyword.get(options, :extraction_timeout_ms, 1000)
 
-    try do
-      # Intentar obtener el estado completo del proceso
-      case :erlang.process_info(pid, :status) do
-        {:status, :running} ->
-          # Puerto activo, intentar extraer CSS de logs recientes
-          extract_css_from_recent_activity(pid, timeout)
+    # Intentar obtener el estado completo del proceso
+    case :erlang.process_info(pid, :status) do
+      {:status, :running} ->
+        # Puerto activo, intentar extraer CSS de logs recientes
+        extract_css_from_recent_activity(pid, timeout)
 
-        _ ->
-          Logger.debug("TailwindPort: Port not running, using empty fallback")
-          ""
-      end
-    rescue
-      error ->
-        Logger.warning("TailwindPort: Port inspection failed: #{inspect(error)}")
+      _ ->
+        Logger.debug("TailwindPort: Port not running, using empty fallback")
         ""
     end
+  rescue
+    error ->
+      Logger.warning("TailwindPort: Port inspection failed: #{inspect(error)}")
+      ""
   end
 
   # Buscar CSS en el diccionario del proceso
@@ -1452,67 +1368,61 @@ defmodule Defdo.TailwindPort.Pool do
 
   # Extraer CSS de actividad reciente del puerto
   defp extract_css_from_recent_activity(pid, timeout) do
-    try do
-      # Estrategia A: Enviar un mensaje de "ping" y ver si hay respuesta con CSS
-      ref = make_ref()
-      send(pid, {:ping_for_css, ref, self()})
+    # Estrategia A: Enviar un mensaje de "ping" y ver si hay respuesta con CSS
+    ref = make_ref()
+    send(pid, {:ping_for_css, ref, self()})
 
-      receive do
-        {:css_response, ^ref, css} when is_binary(css) and css != "" ->
-          Logger.debug("TailwindPort: Got CSS from ping response (#{byte_size(css)} bytes)")
-          css
-      after
-        div(timeout, 2) ->
-          Logger.debug("TailwindPort: No CSS response from ping, trying force regeneration")
-          # Estrategia B: Intentar forzar regeneración del CSS
-          force_css_regeneration(pid, timeout)
-      end
-    rescue
-      _ ->
-        Logger.debug("TailwindPort: Recent activity extraction failed")
-        ""
+    receive do
+      {:css_response, ^ref, css} when is_binary(css) and css != "" ->
+        Logger.debug("TailwindPort: Got CSS from ping response (#{byte_size(css)} bytes)")
+        css
+    after
+      div(timeout, 2) ->
+        Logger.debug("TailwindPort: No CSS response from ping, trying force regeneration")
+        # Estrategia B: Intentar forzar regeneración del CSS
+        force_css_regeneration(pid, timeout)
     end
+  rescue
+    _ ->
+      Logger.debug("TailwindPort: Recent activity extraction failed")
+      ""
   end
 
   # Forzar regeneración de CSS cuando el puerto está degradado pero funcional
   defp force_css_regeneration(pid, remaining_timeout) do
-    try do
-      # Intentar forzar una nueva compilación mínima
-      case Standalone.state(pid) do
-        %{port: port} when not is_nil(port) ->
-          Logger.debug("TailwindPort: Attempting to force CSS regeneration")
+    # Intentar forzar una nueva compilación mínima
+    case Standalone.state(pid) do
+      %{port: port} when not is_nil(port) ->
+        Logger.debug("TailwindPort: Attempting to force CSS regeneration")
 
-          # Enviar señal mínima al puerto para que genere CSS
-          # Esto debería hacer que el puerto procese y genere output
-          send(pid, {:force_regenerate, self()})
+        # Enviar señal mínima al puerto para que genere CSS
+        # Esto debería hacer que el puerto procese y genere output
+        send(pid, {:force_regenerate, self()})
 
-          # Esperar el resultado
-          receive do
-            {:regenerated_css, css} when is_binary(css) and css != "" ->
-              Logger.debug(
-                "TailwindPort: Force regeneration successful (#{byte_size(css)} bytes)"
-              )
+        # Esperar el resultado
+        receive do
+          {:regenerated_css, css} when is_binary(css) and css != "" ->
+            Logger.debug("TailwindPort: Force regeneration successful (#{byte_size(css)} bytes)")
 
-              css
+            css
 
-            {:regeneration_failed, reason} ->
-              Logger.debug("TailwindPort: Force regeneration failed: #{inspect(reason)}")
-              ""
-          after
-            remaining_timeout ->
-              Logger.debug("TailwindPort: Force regeneration timeout")
-              ""
-          end
+          {:regeneration_failed, reason} ->
+            Logger.debug("TailwindPort: Force regeneration failed: #{inspect(reason)}")
+            ""
+        after
+          remaining_timeout ->
+            Logger.debug("TailwindPort: Force regeneration timeout")
+            ""
+        end
 
-        _ ->
-          Logger.debug("TailwindPort: Port not available for force regeneration")
-          ""
-      end
-    rescue
-      error ->
-        Logger.debug("TailwindPort: Force regeneration error: #{inspect(error)}")
+      _ ->
+        Logger.debug("TailwindPort: Port not available for force regeneration")
         ""
     end
+  rescue
+    error ->
+      Logger.debug("TailwindPort: Force regeneration error: #{inspect(error)}")
+      ""
   end
 
   defp fetch_latest_output(pid) do

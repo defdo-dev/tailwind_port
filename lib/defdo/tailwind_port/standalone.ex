@@ -740,36 +740,9 @@ defmodule Defdo.TailwindPort.Standalone do
 
   def handle_info({:force_regenerate, from}, state) do
     # Intentar forzar regeneración de CSS
-    case state do
-      %{preserved_css: css} when is_binary(css) and css != "" ->
-        send(from, {:regenerated_css, css})
-        {:noreply, state}
-
-      %{port: port, last_css_output: css}
-      when not is_nil(port) and is_binary(css) and css != "" ->
-        send(from, {:regenerated_css, css})
-        {:noreply, state}
-
-      %{port: port, latest_output: css} when not is_nil(port) and is_binary(css) and css != "" ->
-        send(from, {:regenerated_css, css})
-        {:noreply, state}
-
-      %{port: port} when not is_nil(port) ->
-        try do
-          Port.command(port, "\n")
-          send(from, {:regeneration_failed, :no_css_available})
-        rescue
-          error ->
-            send(from, {:regeneration_failed, {:port_error, error}})
-        end
-
-        {:noreply, state}
-
-      _ ->
-        # No hay puerto disponible
-        send(from, {:regeneration_failed, :no_port})
-        {:noreply, state}
-    end
+    response = attempt_css_regeneration(state)
+    send(from, response)
+    {:noreply, state}
   end
 
   # Handle registration of CSS listeners from Pool
@@ -884,5 +857,53 @@ defmodule Defdo.TailwindPort.Standalone do
           Logger.warning("Failed to terminate orphaned process #{os_pid}: #{output}")
       end
     end
+  end
+
+  # Helper function to attempt CSS regeneration with multiple fallback strategies
+  defp attempt_css_regeneration(state) do
+    cond do
+      css_available_from_preserved?(state) ->
+        {:regenerated_css, state.preserved_css}
+
+      css_available_from_last_output?(state) ->
+        {:regenerated_css, state.last_css_output}
+
+      css_available_from_latest_output?(state) ->
+        {:regenerated_css, state.latest_output}
+
+      port_available?(state) ->
+        attempt_port_regeneration(state.port)
+
+      true ->
+        {:regeneration_failed, :no_port}
+    end
+  end
+
+  defp css_available_from_preserved?(%{preserved_css: css}) when is_binary(css) and css != "",
+    do: true
+
+  defp css_available_from_preserved?(_), do: false
+
+  defp css_available_from_last_output?(%{port: port, last_css_output: css})
+       when not is_nil(port) and is_binary(css) and css != "",
+       do: true
+
+  defp css_available_from_last_output?(_), do: false
+
+  defp css_available_from_latest_output?(%{port: port, latest_output: css})
+       when not is_nil(port) and is_binary(css) and css != "",
+       do: true
+
+  defp css_available_from_latest_output?(_), do: false
+
+  defp port_available?(%{port: port}) when not is_nil(port), do: true
+  defp port_available?(_), do: false
+
+  defp attempt_port_regeneration(port) do
+    Port.command(port, "\n")
+    {:regeneration_failed, :no_css_available}
+  rescue
+    error ->
+      {:regeneration_failed, {:port_error, error}}
   end
 end

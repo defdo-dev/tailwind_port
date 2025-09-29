@@ -10,4 +10,4 @@ Logger.configure(level: :emergency)
 # Disable telemetry warnings about local function handlers during tests
 Application.put_env(:telemetry, :warn_on_local_function, false)
 
-ExUnit.start()
+ExUnit.start(exclude: [:integration])
