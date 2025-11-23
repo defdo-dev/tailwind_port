@@ -179,7 +179,10 @@ defmodule Defdo.TailwindPort.PortManager do
       |> maybe_add_default_options(["--content"], [])
       |> maybe_add_default_options(["--postcss"], [])
       |> maybe_add_default_options(["-m", "--minify"], [])
+      |> maybe_add_default_options(["--optimize"], [])
       |> maybe_add_default_options(["-c", "--config"], [])
+      |> maybe_add_default_options(["--cwd"], [])
+      |> maybe_add_default_options(["--map"], [])
       |> maybe_add_default_options(["--no-autoprefixer"], [])
 
     {command, final_args} =

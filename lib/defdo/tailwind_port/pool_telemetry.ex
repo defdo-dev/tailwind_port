@@ -70,12 +70,17 @@ defmodule Defdo.TailwindPort.PoolTelemetry do
       metrics_enabled: true,
       alert_thresholds: %{
         error_rate: 0.1,
-        avg_compilation_time: 5000,
+        # Increased from 5000ms to 15000ms (15 seconds)
+        avg_compilation_time: 15000,
         pool_utilization: 0.9
       }
     }
 
-    attach_handler("tailwind_pool_default_monitor", &handle_default_event/4, handler_config)
+    attach_handler(
+      "tailwind_pool_default_monitor",
+      &__MODULE__.handle_default_event/4,
+      handler_config
+    )
   end
 
   @doc """
@@ -160,7 +165,11 @@ defmodule Defdo.TailwindPort.PoolTelemetry do
 
   ## Private Implementation
 
-  defp handle_default_event(event, measurements, metadata, config) do
+  @doc """
+  Handle default telemetry events for monitoring and alerting.
+  This function is used as the default telemetry handler.
+  """
+  def handle_default_event(event, measurements, metadata, config) do
     # Update metrics
     update_metrics(event, measurements, metadata)
 

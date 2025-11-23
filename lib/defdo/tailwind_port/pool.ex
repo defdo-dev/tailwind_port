@@ -907,30 +907,54 @@ defmodule Defdo.TailwindPort.Pool do
   end
 
   defp build_start_args(opts) do
-    {cmd, remainder} = Keyword.pop(opts, :cmd)
-    {cli_args, remainder} = Keyword.pop(remainder, :opts, [])
-    {input, remainder} = Keyword.pop(remainder, :input)
-    {output, remainder} = Keyword.pop(remainder, :output)
-    {content, remainder} = Keyword.pop(remainder, :content)
-    {config_file, remainder} = Keyword.pop(remainder, :config)
-    {postcss, remainder} = Keyword.pop(remainder, :postcss)
-    {minify?, remainder} = Keyword.pop(remainder, :minify)
-    {watch?, remainder} = Keyword.pop(remainder, :watch)
-    {poll?, _remainder} = Keyword.pop(remainder, :poll)
+    {cmd, _remainder} = Keyword.pop(opts, :cmd)
 
-    cli_args
-    |> add_cli_option("-i", input)
-    |> add_cli_option("-o", output)
-    |> add_content_options(content)
-    |> add_cli_option("-c", config_file)
-    |> add_cli_option("--postcss", postcss)
-    |> add_cli_flag("--minify", minify?)
-    |> add_cli_flag("--watch", watch?)
-    |> add_cli_flag("--poll", poll?)
-    |> then(fn final_opts ->
-      []
-      |> maybe_put(:cmd, normalize_cmd(cmd))
-      |> Keyword.put(:opts, final_opts)
+    # Extract keyword options from opts for compatibility filtering
+    keyword_opts =
+      [
+        input: Keyword.get(opts, :input),
+        output: Keyword.get(opts, :output),
+        content: Keyword.get(opts, :content),
+        config: Keyword.get(opts, :config),
+        postcss: Keyword.get(opts, :postcss),
+        minify: Keyword.get(opts, :minify),
+        watch: Keyword.get(opts, :watch),
+        poll: Keyword.get(opts, :poll),
+        optimize: Keyword.get(opts, :optimize),
+        cwd: Keyword.get(opts, :cwd),
+        map: Keyword.get(opts, :map)
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Defdo.TailwindPort.CliCompatibility.filter_args_for_current_version()
+
+    # Convert filtered options back to CLI args
+    cli_args =
+      keyword_opts
+      |> build_cli_args_from_opts()
+
+    []
+    |> maybe_put(:cmd, normalize_cmd(cmd))
+    |> Keyword.put(:opts, cli_args)
+  end
+
+  # Helper to convert filtered keyword options back to CLI argument list
+  defp build_cli_args_from_opts(opts) when is_list(opts) do
+    opts
+    |> Enum.reduce([], fn {key, value}, acc ->
+      case key do
+        :input -> add_cli_option(acc, "-i", value)
+        :output -> add_cli_option(acc, "-o", value)
+        :content -> add_content_options(acc, value)
+        :config -> add_cli_option(acc, "-c", value)
+        :postcss -> add_cli_option(acc, "--postcss", value)
+        :minify -> add_cli_flag(acc, "--minify", value)
+        :watch -> add_cli_flag(acc, "--watch", value)
+        :poll -> add_cli_flag(acc, "--poll", value)
+        :optimize -> add_cli_flag(acc, "--optimize", value)
+        :cwd -> add_cli_option(acc, "--cwd", value)
+        :map -> add_cli_flag(acc, "--map", value)
+        _ -> acc
+      end
     end)
   end
 
@@ -1282,13 +1306,13 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
-  # Nueva estrategia con múltiples fallbacks para extraer CSS
+  # New strategy with multiple fallbacks to extract CSS
   defp extract_css_with_fallbacks(pid, options) do
     Logger.debug(
       "TailwindPort: Attempting CSS extraction with multiple fallbacks for pid #{inspect(pid)}"
     )
 
-    # Estrategia 1: Método original
+    # Strategy 1: Original method
     case fetch_latest_output(pid) do
       css when is_binary(css) and css != "" ->
         Logger.debug("TailwindPort: Success with fetch_latest_output (#{byte_size(css)} bytes)")
@@ -1300,9 +1324,9 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
-  # Métodos alternativos para extraer CSS cuando el método principal falla
+  # Alternative methods to extract CSS when the main method fails
   defp extract_css_alternative_methods(pid, options) do
-    # Estrategia 2: Intentar leer directamente del estado del proceso
+    # Strategy 2: Try to read directly from process state
     case extract_css_from_process_state(pid) do
       css when is_binary(css) and css != "" ->
         Logger.debug(
@@ -1331,14 +1355,14 @@ defmodule Defdo.TailwindPort.Pool do
     _ -> nil
   end
 
-  # Estrategia 4: Inspección de puerto con timeout reducido
+  # Strategy 4: Port inspection with reduced timeout
   defp extract_css_from_port_inspection(pid, options) do
     timeout = Keyword.get(options, :extraction_timeout_ms, 1000)
 
-    # Intentar obtener el estado completo del proceso
+    # Try to get the complete process state
     case :erlang.process_info(pid, :status) do
       {:status, :running} ->
-        # Puerto activo, intentar extraer CSS de logs recientes
+        # Active port, try to extract CSS from recent logs
         extract_css_from_recent_activity(pid, timeout)
 
       _ ->
@@ -1368,7 +1392,7 @@ defmodule Defdo.TailwindPort.Pool do
 
   # Extraer CSS de actividad reciente del puerto
   defp extract_css_from_recent_activity(pid, timeout) do
-    # Estrategia A: Enviar un mensaje de "ping" y ver si hay respuesta con CSS
+    # Strategy A: Send a "ping" message and see if there's a CSS response
     ref = make_ref()
     send(pid, {:ping_for_css, ref, self()})
 
@@ -1379,7 +1403,7 @@ defmodule Defdo.TailwindPort.Pool do
     after
       div(timeout, 2) ->
         Logger.debug("TailwindPort: No CSS response from ping, trying force regeneration")
-        # Estrategia B: Intentar forzar regeneración del CSS
+        # Strategy B: Try to force CSS regeneration
         force_css_regeneration(pid, timeout)
     end
   rescue
@@ -1388,18 +1412,18 @@ defmodule Defdo.TailwindPort.Pool do
       ""
   end
 
-  # Forzar regeneración de CSS cuando el puerto está degradado pero funcional
+  # Force CSS regeneration when the port is degraded but functional
   defp force_css_regeneration(pid, remaining_timeout) do
-    # Intentar forzar una nueva compilación mínima
+    # Try to force a new minimal compilation
     case Standalone.state(pid) do
       %{port: port} when not is_nil(port) ->
         Logger.debug("TailwindPort: Attempting to force CSS regeneration")
 
-        # Enviar señal mínima al puerto para que genere CSS
-        # Esto debería hacer que el puerto procese y genere output
+        # Send minimal signal to the port to generate CSS
+        # This should make the port process and generate output
         send(pid, {:force_regenerate, self()})
 
-        # Esperar el resultado
+        # Wait for the result
         receive do
           {:regenerated_css, css} when is_binary(css) and css != "" ->
             Logger.debug("TailwindPort: Force regeneration successful (#{byte_size(css)} bytes)")
