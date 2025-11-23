@@ -70,8 +70,8 @@ defmodule Defdo.TailwindPort.PoolTelemetry do
       metrics_enabled: true,
       alert_thresholds: %{
         error_rate: 0.1,
-        # Increased from 5000ms to 15000ms (15 seconds)
-        avg_compilation_time: 15000,
+        # Increased from 5000ms to 15_000ms (15 seconds)
+        avg_compilation_time: 15_000,
         pool_utilization: 0.9
       }
     }

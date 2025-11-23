@@ -113,21 +113,19 @@ defmodule Defdo.TailwindPort.CliCompatibility do
   """
   @spec detect_version() :: version()
   def detect_version do
-    try do
-      version = ConfigManager.get_version()
+    version = ConfigManager.get_version()
 
-      cond do
-        String.starts_with?(version, "4.") -> :v4
-        String.contains?(version, "beta") -> :v4
-        String.contains?(version, "alpha") -> :v4
-        String.starts_with?(version, "3.") -> :v3
-        # Default to v3 for unknown versions
-        true -> :v3
-      end
-    rescue
-      # Default to v3 if version detection fails
-      _ -> :v3
+    cond do
+      String.starts_with?(version, "4.") -> :v4
+      String.contains?(version, "beta") -> :v4
+      String.contains?(version, "alpha") -> :v4
+      String.starts_with?(version, "3.") -> :v3
+      # Default to v3 for unknown versions
+      true -> :v3
     end
+  rescue
+    # Default to v3 if version detection fails
+    _ -> :v3
   end
 
   @doc """

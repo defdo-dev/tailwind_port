@@ -26,7 +26,7 @@ defmodule Defdo.TailwindPort.Pool do
   use GenServer
   require Logger
 
-  alias Defdo.TailwindPort.Standalone
+  alias Defdo.TailwindPort.{CliCompatibility, Standalone}
 
   @default_pool_size 3
   @config_cache_ttl :timer.minutes(30)
@@ -925,7 +925,7 @@ defmodule Defdo.TailwindPort.Pool do
         map: Keyword.get(opts, :map)
       ]
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-      |> Defdo.TailwindPort.CliCompatibility.filter_args_for_current_version()
+      |> CliCompatibility.filter_args_for_current_version()
 
     # Convert filtered options back to CLI args
     cli_args =
@@ -939,24 +939,21 @@ defmodule Defdo.TailwindPort.Pool do
 
   # Helper to convert filtered keyword options back to CLI argument list
   defp build_cli_args_from_opts(opts) when is_list(opts) do
-    opts
-    |> Enum.reduce([], fn {key, value}, acc ->
-      case key do
-        :input -> add_cli_option(acc, "-i", value)
-        :output -> add_cli_option(acc, "-o", value)
-        :content -> add_content_options(acc, value)
-        :config -> add_cli_option(acc, "-c", value)
-        :postcss -> add_cli_option(acc, "--postcss", value)
-        :minify -> add_cli_flag(acc, "--minify", value)
-        :watch -> add_cli_flag(acc, "--watch", value)
-        :poll -> add_cli_flag(acc, "--poll", value)
-        :optimize -> add_cli_flag(acc, "--optimize", value)
-        :cwd -> add_cli_option(acc, "--cwd", value)
-        :map -> add_cli_flag(acc, "--map", value)
-        _ -> acc
-      end
-    end)
+    Enum.reduce(opts, [], &append_cli_arg/2)
   end
+
+  defp append_cli_arg({:input, value}, acc), do: add_cli_option(acc, "-i", value)
+  defp append_cli_arg({:output, value}, acc), do: add_cli_option(acc, "-o", value)
+  defp append_cli_arg({:content, value}, acc), do: add_content_options(acc, value)
+  defp append_cli_arg({:config, value}, acc), do: add_cli_option(acc, "-c", value)
+  defp append_cli_arg({:postcss, value}, acc), do: add_cli_option(acc, "--postcss", value)
+  defp append_cli_arg({:minify, value}, acc), do: add_cli_flag(acc, "--minify", value)
+  defp append_cli_arg({:watch, value}, acc), do: add_cli_flag(acc, "--watch", value)
+  defp append_cli_arg({:poll, value}, acc), do: add_cli_flag(acc, "--poll", value)
+  defp append_cli_arg({:optimize, value}, acc), do: add_cli_flag(acc, "--optimize", value)
+  defp append_cli_arg({:cwd, value}, acc), do: add_cli_option(acc, "--cwd", value)
+  defp append_cli_arg({:map, value}, acc), do: add_cli_flag(acc, "--map", value)
+  defp append_cli_arg({_key, _value}, acc), do: acc
 
   defp add_cli_option(opts, _flag, nil), do: opts
 
