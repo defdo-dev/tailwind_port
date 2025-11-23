@@ -739,7 +739,7 @@ defmodule Defdo.TailwindPort.Standalone do
   end
 
   def handle_info({:force_regenerate, from}, state) do
-    # Intentar forzar regeneración de CSS
+    # Try to force CSS regeneration
     response = attempt_css_regeneration(state)
     send(from, response)
     {:noreply, state}
