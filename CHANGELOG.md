@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-02-18
+
+### 🔧 Maintenance
+- Bumped project version to `0.3.4` in `mix.exs`.
+- Updated dependencies in `mix.lock`:
+  - `castore` `1.0.15` → `1.0.17`
+  - `credo` `1.7.13` → `1.7.16`
+  - `dialyxir` `1.4.6` → `1.4.7`
+  - `erlex` `0.2.7` → `0.2.8`
+  - `ex_doc` `0.38.4` → `0.40.1`
+  - `makeup_erlang` `1.0.2` → `1.0.3`
+- No API or runtime behavior changes in library modules.
+
 ## [0.3.3] - 2025-11-23
 
 ### 🚨 Major Bug Fixes
