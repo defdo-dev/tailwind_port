@@ -40,6 +40,7 @@ defmodule Defdo.TailwindPort.BinaryManager do
   """
 
   require Logger
+  alias Defdo.TailwindPort.ConfigManager
 
   @typedoc "Target platform identifier"
   @type target :: String.t()
@@ -147,7 +148,7 @@ defmodule Defdo.TailwindPort.BinaryManager do
   ## Error Reasons
 
     * `:binary_too_small` - Binary is smaller than minimum expected size
-    * `:binary_too_large` - Binary exceeds maximum allowed size
+    * `:binary_too_large` - Binary exceeds the configured maximum allowed size
     * `:invalid_pe_signature` - Windows PE signature validation failed
     * `:invalid_macho_signature` - macOS Mach-O signature validation failed
     * `:invalid_elf_signature` - Linux ELF signature validation failed
@@ -329,14 +330,15 @@ defmodule Defdo.TailwindPort.BinaryManager do
 
   defp check_binary_size(binary) do
     size = byte_size(binary)
+    max_binary_size = ConfigManager.get_max_binary_size_bytes()
 
     cond do
       size < 1_000_000 ->
         # Less than 1MB is probably too small for a real Tailwind binary
         {:error, :binary_too_small}
 
-      size > 100_000_000 ->
-        # More than 100MB is probably too large
+      size > max_binary_size ->
+        # Large self-hosted binaries are valid, but still cap the size to catch bad artifacts.
         {:error, :binary_too_large}
 
       true ->

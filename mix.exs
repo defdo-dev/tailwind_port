@@ -7,17 +7,11 @@ defmodule TailwindPort.MixProject do
   def project do
     [
       app: :tailwind_port,
-      version: "0.3.4",
+      version: "0.3.5",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test
-      ],
       xref: [
         exclude: [:httpc, :public_key]
       ],
@@ -56,6 +50,17 @@ defmodule TailwindPort.MixProject do
           Reference: ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
           "Project Info": ["CHANGELOG.md"]
         ]
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
       ]
     ]
   end

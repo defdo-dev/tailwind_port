@@ -1,6 +1,6 @@
 defmodule Defdo.TailwindPort.ConfigManagerTest do
   @moduledoc false
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias Defdo.TailwindPort.ConfigManager
 
   describe "get_version/0" do
@@ -148,6 +148,40 @@ defmodule Defdo.TailwindPort.ConfigManagerTest do
         if original,
           do: Application.put_env(:tailwind_port, :path, original),
           else: Application.delete_env(:tailwind_port, :path)
+      end
+    end
+  end
+
+  describe "get_max_binary_size_bytes/0" do
+    test "returns configured max binary size when set" do
+      original = Application.get_env(:tailwind_port, :max_binary_size_bytes)
+
+      try do
+        Application.put_env(:tailwind_port, :max_binary_size_bytes, 123_456_789)
+        assert ConfigManager.get_max_binary_size_bytes() == 123_456_789
+      after
+        if is_integer(original) do
+          Application.put_env(:tailwind_port, :max_binary_size_bytes, original)
+        else
+          Application.delete_env(:tailwind_port, :max_binary_size_bytes)
+        end
+      end
+    end
+
+    test "falls back to the default max binary size for invalid values" do
+      original = Application.get_env(:tailwind_port, :max_binary_size_bytes)
+
+      try do
+        Enum.each([nil, 0, -1, "invalid"], fn value ->
+          Application.put_env(:tailwind_port, :max_binary_size_bytes, value)
+          assert ConfigManager.get_max_binary_size_bytes() == 150_000_000
+        end)
+      after
+        if is_integer(original) do
+          Application.put_env(:tailwind_port, :max_binary_size_bytes, original)
+        else
+          Application.delete_env(:tailwind_port, :max_binary_size_bytes)
+        end
       end
     end
   end

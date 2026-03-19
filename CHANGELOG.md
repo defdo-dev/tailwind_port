@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-03-19
+
+### 🐛 Bug Fixes
+- Make the Tailwind binary upper size limit configurable through `config :tailwind_port, max_binary_size_bytes: ...` instead of hardcoding `100MB`.
+- Raise the default maximum download size to `150_000_000` bytes so current Defdo-distributed Linux binaries can be downloaded without failing with `:binary_too_large`.
+- Keep binary verification in place while allowing hosts to raise or lower the size ceiling explicitly for future runtime-managed versions.
+
+### 📚 Documentation
+- Document the recommended release contract for custom Tailwind binaries: bake the binary into the image, point `:tailwind_port` at the installed path, and leave runtime download as a fallback.
+
 ## [0.3.4] - 2026-02-18
 
 ### 🔧 Maintenance

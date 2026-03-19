@@ -1,6 +1,7 @@
 defmodule Defdo.TailwindDownloadTest do
   @moduledoc false
   use ExUnit.Case
+  import Mock
   alias Defdo.TailwindDownload
 
   test "configured_version/0 returns version" do
@@ -230,6 +231,67 @@ defmodule Defdo.TailwindDownloadTest do
           Application.delete_env(:tailwind_port, :url)
         end
       end
+    end
+  end
+
+  describe "download telemetry" do
+    setup do
+      handler_id = "tailwind-download-test-#{System.unique_integer([:positive])}"
+      test_pid = self()
+
+      :telemetry.attach(
+        handler_id,
+        [:tailwind_port, :download, :error],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      :ok
+    end
+
+    test "classifies oversized binaries as validation errors" do
+      original_max_binary_size = Application.get_env(:tailwind_port, :max_binary_size_bytes)
+
+      on_exit(fn ->
+        if is_integer(original_max_binary_size) do
+          Application.put_env(:tailwind_port, :max_binary_size_bytes, original_max_binary_size)
+        else
+          Application.delete_env(:tailwind_port, :max_binary_size_bytes)
+        end
+      end)
+
+      Application.put_env(:tailwind_port, :max_binary_size_bytes, 2_000_000)
+
+      with_mock Defdo.TailwindPort.HttpClient,
+        fetch_binary: fn _url ->
+          {:ok, platform_binary(2_100_000)}
+        end do
+        assert {:error, :binary_too_large} =
+                 TailwindDownload.download(
+                   Path.join(
+                     System.tmp_dir!(),
+                     "tailwind_download_#{System.unique_integer([:positive])}"
+                   ),
+                   "https://example.com/v$version/tailwindcss-$target"
+                 )
+      end
+
+      assert_receive {[:tailwind_port, :download, :error], measurements, metadata}
+      assert is_integer(measurements.duration_ms)
+      assert metadata.error_type == :validation_error
+    end
+  end
+
+  defp platform_binary(size) when is_integer(size) and size > 0 do
+    payload = :crypto.strong_rand_bytes(size)
+
+    case :os.type() do
+      {:win32, _} -> <<"MZ">> <> payload
+      {:unix, :darwin} -> <<0xCF, 0xFA, 0xED, 0xFE>> <> payload
+      {:unix, _} -> <<0x7F, "ELF">> <> payload
     end
   end
 

@@ -107,7 +107,7 @@ defmodule Defdo.TailwindPort.HealthTest do
         "Built successfully",
         "Watching for changes",
         "Ready to build",
-        "Any non-empty output"
+        ".text-red-500{display:block}"
       ]
 
       Enum.each(ready_patterns, fn pattern ->
@@ -119,9 +119,14 @@ defmodule Defdo.TailwindPort.HealthTest do
       refute Health.detect_readiness("")
     end
 
-    test "returns true for any non-empty string" do
-      assert Health.detect_readiness("x")
-      assert Health.detect_readiness("random output")
+    test "returns false for arbitrary non-ready output" do
+      refute Health.detect_readiness("x")
+      refute Health.detect_readiness("Loading configuration")
+    end
+
+    test "returns false for explicit error output" do
+      refute Health.detect_readiness("Error: failed to compile")
+      refute Health.detect_readiness("invalid config")
     end
   end
 
@@ -211,8 +216,7 @@ defmodule Defdo.TailwindPort.HealthTest do
 
     test "does not mark ready for non-ready data" do
       state = %{port_ready: false}
-      # Using empty string which should not indicate readiness
-      updated_state = Health.mark_port_ready(state, "")
+      updated_state = Health.mark_port_ready(state, "Loading configuration")
       assert updated_state.port_ready == false
     end
 

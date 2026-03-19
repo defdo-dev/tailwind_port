@@ -60,6 +60,21 @@ mix deps.get
 
 ## Usage
 
+### Binary Download Configuration
+
+If you publish a custom Tailwind CLI build, set the binary path explicitly and
+keep the allowed download size aligned with the artifact you distribute:
+
+```elixir
+config :tailwind_port,
+  path: System.get_env("TAILWIND_PATH", "/opt/defdo/bin/tailwindcss"),
+  max_binary_size_bytes: 150_000_000
+```
+
+For production releases, prefer baking the binary into the image and using the
+configured path above. Runtime download should stay as a fallback, not the main
+release strategy.
+
 ### Basic Usage
 
 ```elixir

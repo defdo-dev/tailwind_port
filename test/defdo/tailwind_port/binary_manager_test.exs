@@ -1,6 +1,6 @@
 defmodule Defdo.TailwindPort.BinaryManagerTest do
   @moduledoc false
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   import Bitwise
   alias Defdo.TailwindPort.BinaryManager
 
@@ -54,9 +54,20 @@ defmodule Defdo.TailwindPort.BinaryManagerTest do
       assert {:error, :binary_too_small} = BinaryManager.verify_binary(small_binary)
     end
 
-    test "rejects binary that is too large" do
-      # Create a binary larger than 100MB limit
-      large_binary = :crypto.strong_rand_bytes(101_000_000)
+    test "rejects binary that exceeds the configured max size" do
+      original_max_binary_size = Application.get_env(:tailwind_port, :max_binary_size_bytes)
+
+      on_exit(fn ->
+        if is_integer(original_max_binary_size) do
+          Application.put_env(:tailwind_port, :max_binary_size_bytes, original_max_binary_size)
+        else
+          Application.delete_env(:tailwind_port, :max_binary_size_bytes)
+        end
+      end)
+
+      Application.put_env(:tailwind_port, :max_binary_size_bytes, 2_000_000)
+
+      large_binary = platform_binary(2_100_000)
       assert {:error, :binary_too_large} = BinaryManager.verify_binary(large_binary)
     end
 
@@ -382,6 +393,16 @@ defmodule Defdo.TailwindPort.BinaryManagerTest do
     test "current platform target is always valid" do
       current_target = BinaryManager.get_target()
       assert BinaryManager.valid_target?(current_target)
+    end
+  end
+
+  defp platform_binary(size) when is_integer(size) and size > 0 do
+    payload = :crypto.strong_rand_bytes(size)
+
+    case :os.type() do
+      {:win32, _} -> <<"MZ">> <> payload
+      {:unix, :darwin} -> <<0xCF, 0xFA, 0xED, 0xFE>> <> payload
+      {:unix, _} -> <<0x7F, "ELF">> <> payload
     end
   end
 end

@@ -25,6 +25,7 @@ defmodule Defdo.TailwindPort.ConfigManager do
         version: "3.4.1",
         url: "https://example.com/tailwind/v$version/tailwindcss-$target",
         path: "/usr/local/bin/tailwindcss",
+        max_binary_size_bytes: 150_000_000,
         cacerts_path: "/etc/ssl/certs/ca-certificates.crt"
 
   ### Environment Variables
@@ -65,6 +66,7 @@ defmodule Defdo.TailwindPort.ConfigManager do
   alias Defdo.TailwindPort.BinaryManager
 
   @latest_version "3.4.1"
+  @default_max_binary_size_bytes 150_000_000
 
   @typedoc "Configuration value type"
   @type config_value :: String.t() | integer() | boolean() | nil
@@ -190,6 +192,29 @@ defmodule Defdo.TailwindPort.ConfigManager do
       else
         Path.expand("bin/#{name}")
       end
+  end
+
+  @doc """
+  Gets the maximum allowed download size for a Tailwind binary in bytes.
+
+  ## Examples
+
+      config :tailwind_port, max_binary_size_bytes: 150_000_000
+
+      ConfigManager.get_max_binary_size_bytes()
+      # => 150000000
+
+  """
+  @spec get_max_binary_size_bytes() :: pos_integer()
+  def get_max_binary_size_bytes do
+    case Application.get_env(
+           :tailwind_port,
+           :max_binary_size_bytes,
+           @default_max_binary_size_bytes
+         ) do
+      value when is_integer(value) and value > 0 -> value
+      _ -> @default_max_binary_size_bytes
+    end
   end
 
   @doc """

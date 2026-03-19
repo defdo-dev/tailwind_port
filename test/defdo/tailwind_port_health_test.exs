@@ -23,11 +23,13 @@ defmodule Defdo.TailwindPortHealthTest do
     Standalone.terminate(name)
   end
 
-  test "health metrics update with port activity" do
+  test "health metrics update from readiness output" do
     name = :health_activity_test
-    opts = ["-i", "./assets/css/app.css", "--content", "./priv/static/html/*.html", "-m"]
 
-    assert {:ok, _pid} = Standalone.start_link(name: name, opts: opts)
+    # This test exercises health/readiness tracking, not end-to-end Tailwind compilation.
+    # Use a deterministic command that emits a readiness-like line immediately.
+    assert {:ok, _pid} =
+             Standalone.start_link(name: name, cmd: echo_command!(), opts: ["Done in 45ms"])
 
     # Wait for some activity
     :ok = Standalone.wait_until_ready(name, 5000)
@@ -43,4 +45,67 @@ defmodule Defdo.TailwindPortHealthTest do
 
     Standalone.terminate(name)
   end
+
+  test "error output does not mark the port as ready" do
+    name = :health_error_output_test
+    script_path = failing_script_path!()
+
+    on_exit(fn ->
+      File.rm(script_path)
+
+      case Process.whereis(name) do
+        nil -> :ok
+        _pid -> Standalone.terminate(name)
+      end
+    end)
+
+    assert {:ok, _pid} =
+             Standalone.start_link(name: name, cmd: script_path, opts: ["-i", "/tmp/ignored.css"])
+
+    assert :ok = wait_for(fn -> Standalone.state(name).exit_status == 1 end)
+
+    refute Standalone.ready?(name, 100)
+
+    health = Standalone.health(name)
+    refute health.port_ready
+    assert health.errors > 0
+    assert Standalone.state(name).exit_status == 1
+  end
+
+  defp echo_command! do
+    System.find_executable("echo") || raise "echo executable not found"
+  end
+
+  defp failing_script_path! do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "tailwind_port_fail_#{System.unique_integer([:positive])}.sh"
+      )
+
+    File.write!(
+      path,
+      """
+      #!/bin/sh
+      echo "Error: failed to compile" >&2
+      exit 1
+      """
+    )
+
+    File.chmod!(path, 0o755)
+    path
+  end
+
+  defp wait_for(fun, attempts \\ 20)
+
+  defp wait_for(fun, attempts) when attempts > 0 do
+    if fun.() do
+      :ok
+    else
+      Process.sleep(25)
+      wait_for(fun, attempts - 1)
+    end
+  end
+
+  defp wait_for(_fun, 0), do: {:error, :timeout}
 end

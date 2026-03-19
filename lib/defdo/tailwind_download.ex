@@ -79,8 +79,10 @@ defmodule Defdo.TailwindDownload do
       case Defdo.TailwindDownload.download("/tmp/tailwindcss") do
         :ok ->
           :ok
-        {:error, {:binary_too_small, size}} ->
-          Logger.error("Downloaded binary too small: \#{size} bytes")
+        {:error, :binary_too_small} ->
+          Logger.error("Downloaded binary too small")
+        {:error, :binary_too_large} ->
+          Logger.error("Downloaded binary exceeded configured max size")
         {:error, :invalid_elf_signature} ->
           Logger.error("Invalid binary signature for Linux platform")
         {:error, {:download_failed, reason}} ->
@@ -179,8 +181,8 @@ defmodule Defdo.TailwindDownload do
   - `:invalid_url` - Malformed download URL
 
   ### Binary Verification Errors
-  - `{:binary_too_small, size}` - Downloaded file too small (< 1MB)
-  - `{:binary_too_large, size}` - Downloaded file too large (> 100MB)
+  - `:binary_too_small` - Downloaded file too small (< 1MB)
+  - `:binary_too_large` - Downloaded file exceeds configured max size
   - `:invalid_pe_signature` - Invalid Windows PE signature
   - `:invalid_macho_signature` - Invalid macOS Mach-O signature
   - `:invalid_elf_signature` - Invalid Linux/FreeBSD ELF signature
@@ -418,11 +420,13 @@ defmodule Defdo.TailwindDownload do
   # Categorize errors for better telemetry analysis
   defp categorize_error({:http_error, _}), do: :http_error
   defp categorize_error({:request_failed, _}), do: :network_error
+  defp categorize_error(:binary_too_small), do: :validation_error
+  defp categorize_error(:binary_too_large), do: :validation_error
+  defp categorize_error(:invalid_elf_signature), do: :validation_error
+  defp categorize_error(:invalid_pe_signature), do: :validation_error
+  defp categorize_error(:invalid_macho_signature), do: :validation_error
   defp categorize_error({:binary_too_small, _}), do: :validation_error
   defp categorize_error({:binary_too_large, _}), do: :validation_error
-  defp categorize_error({:invalid_elf_signature}), do: :validation_error
-  defp categorize_error({:invalid_pe_signature}), do: :validation_error
-  defp categorize_error({:invalid_macho_signature}), do: :validation_error
   defp categorize_error({:mkdir_failed, _}), do: :filesystem_error
   defp categorize_error({:write_failed, _}), do: :filesystem_error
   defp categorize_error({:chmod_failed, _}), do: :filesystem_error

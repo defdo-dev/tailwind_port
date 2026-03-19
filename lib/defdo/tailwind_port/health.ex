@@ -195,13 +195,11 @@ defmodule Defdo.TailwindPort.Health do
   """
   @spec detect_readiness(String.t()) :: boolean()
   def detect_readiness(data) when is_binary(data) do
-    # Consider port ready if we get any output that suggests Tailwind is running
-    String.contains?(data, "Rebuilding") or
-      String.contains?(data, "Done in") or
-      String.contains?(data, "Built successfully") or
-      String.contains?(data, "Watching") or
-      String.contains?(data, "Ready") or
-      byte_size(data) > 0
+    trimmed = String.trim(data)
+
+    trimmed != "" and
+      not error_output?(trimmed) and
+      (success_output?(trimmed) or css_output?(trimmed))
   end
 
   @doc """
@@ -333,5 +331,27 @@ defmodule Defdo.TailwindPort.Health do
   defp port_active?(state) do
     port = Map.get(state, :port)
     not is_nil(port) and not is_nil(Port.info(port))
+  end
+
+  defp success_output?(data) do
+    String.contains?(data, "Rebuilding") or
+      String.contains?(data, "Done in") or
+      String.contains?(data, "Built successfully") or
+      String.contains?(data, "Watching") or
+      String.contains?(data, "Ready")
+  end
+
+  defp css_output?(data) do
+    String.contains?(data, "{") or String.contains?(data, "}")
+  end
+
+  defp error_output?(data) do
+    downcased = String.downcase(data)
+
+    String.contains?(downcased, "error") or
+      String.contains?(downcased, "failed") or
+      String.contains?(downcased, "invalid") or
+      String.contains?(downcased, "not found") or
+      String.contains?(downcased, "panic")
   end
 end
