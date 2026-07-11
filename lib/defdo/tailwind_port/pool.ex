@@ -1140,11 +1140,15 @@ defmodule Defdo.TailwindPort.Pool do
   defp maybe_update_for_error_reason(stats, _reason), do: stats
 
   defp normalize_operation_opts(opts, _options) when is_list(opts) do
-    case Keyword.get(opts, :content) do
-      nil -> Keyword.put(opts, :content, default_content_path(opts))
-      [] -> Keyword.put(opts, :content, default_content_path(opts))
-      _ -> opts
-    end
+    # Hash the caller-provided opts once so every managed default path is
+    # stable for the same logical configuration — this keeps the derived
+    # config hash (and therefore port reuse) intact across compiles.
+    hash = :erlang.phash2(opts)
+
+    opts
+    |> put_default_opt(:content, managed_path("content_#{hash}.html"))
+    |> put_default_opt(:input, managed_path("input_#{hash}.css"))
+    |> put_default_opt(:output, managed_path("output_#{hash}.css"))
   end
 
   defp normalize_operation_opts(opts, options) do
@@ -1153,10 +1157,20 @@ defmodule Defdo.TailwindPort.Pool do
     |> normalize_operation_opts(options)
   end
 
-  defp default_content_path(opts) do
+  defp put_default_opt(opts, key, default) do
+    case Keyword.get(opts, key) do
+      nil -> Keyword.put(opts, key, default)
+      [] -> Keyword.put(opts, key, default)
+      _ -> opts
+    end
+  end
+
+  # Pool-managed scratch location. Callers that omit :input/:output/:content
+  # get full file-based compilation (instead of degraded stdout capture)
+  # without having to create or clean up temp files themselves.
+  defp managed_path(filename) do
     base = System.tmp_dir!() || "/tmp"
-    hash = :erlang.phash2(opts)
-    Path.join([base, "tailwind_port", "content_#{hash}.html"])
+    Path.join([base, "tailwind_port", filename])
   end
 
   defp initialize_port_metadata(port_info, opts) do
