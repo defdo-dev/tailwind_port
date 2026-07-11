@@ -171,3 +171,31 @@ jobs:
           ${{ needs.publish.result == 'failure' && '❌ Hex.pm Publish' || '✅ Hex.pm Publish' }}
           
           Please check the workflow logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  publish-docs:
+    name: Publish docs to foss.defdo.ninja
+    runs-on: ubuntu-24.04
+    needs: publish
+    # Non-blocking until the docs portal is live and FOSS_PUBLISH_TOKEN exists
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.19'
+        otp-version: '28.1'
+        version-type: loose
+    - name: Build and publish docs
+      env:
+        HEX_ORG_TOKEN: ${{ secrets.HEX_ORG_TOKEN }}
+        FOSS_PUBLISH_TOKEN: ${{ secrets.FOSS_PUBLISH_TOKEN }}
+      run: |
+        mix local.hex --force && mix local.rebar --force
+        if [ -n "$HEX_ORG_TOKEN" ]; then mix hex.organization auth defdo --key "$HEX_ORG_TOKEN"; fi
+        mix deps.get
+        mix docs
+        tar -czf docs.tar.gz -C doc .
+        curl --fail -X POST \
+          -H "Authorization: Bearer $FOSS_PUBLISH_TOKEN" \
+          -H "Content-Type: application/gzip" \
+          --data-binary @docs.tar.gz \
+          "https://foss.defdo.ninja/api/packages/tailwind_port/${GITHUB_REF_NAME}/docs"
