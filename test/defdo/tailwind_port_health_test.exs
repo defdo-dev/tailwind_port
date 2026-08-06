@@ -96,7 +96,11 @@ defmodule Defdo.TailwindPortHealthTest do
     path
   end
 
-  defp wait_for(fun, attempts \\ 20)
+  # 2s, not 500ms: this waits for an OS process to start and exit, and the
+  # suite now runs real CLI stubs elsewhere, so the box can be busy enough for
+  # a 500ms budget to expire before the exit is reaped. The assertion is about
+  # the eventual exit status, never about how quickly it arrives.
+  defp wait_for(fun, attempts \\ 80)
 
   defp wait_for(fun, attempts) when attempts > 0 do
     if fun.() do

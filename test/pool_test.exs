@@ -3,6 +3,32 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   alias Defdo.TailwindPort.Pool
 
+  # A stand-in for the Tailwind CLI. `echo` used to serve this purpose, but it
+  # writes no output file — so these tests only passed while the pool invented
+  # a result for a compile that never happened. This honours the `-i/-o`
+  # contract and prints the "Done in" line readiness detection looks for.
+  @cli Path.join(System.tmp_dir!(), "tailwind_port_pool_test/fake_tailwind")
+
+  setup_all do
+    File.mkdir_p!(Path.dirname(@cli))
+
+    File.write!(@cli, """
+    #!/bin/sh
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -i) IN="$2"; shift 2 ;;
+        -o) OUT="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    [ -n "$OUT" ] && { [ -f "$IN" ] && cat "$IN" > "$OUT" || echo "/* empty */" > "$OUT"; }
+    echo "Done in 1ms"
+    """)
+
+    File.chmod!(@cli, 0o755)
+    :ok
+  end
+
   setup do
     # Ensure clean state before each test
     case Process.whereis(Pool) do
@@ -15,32 +41,32 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "start_link/1" do
     test "starts the pooled port pool successfully" do
-      assert {:ok, pid} = Pool.start_link(compile_timeout_ms: 100)
+      assert {:ok, pid} = Pool.start_link(compile_timeout_ms: 2_000)
       assert Process.alive?(pid)
       assert Process.whereis(Pool) == pid
     end
 
     test "returns already_started if already running" do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       assert {:error, {:already_started, _pid}} = Pool.start_link()
     end
 
     test "accepts custom options" do
       opts = [max_pool_size: 5, enable_watch_mode: false]
-      assert {:ok, _pid} = Pool.start_link([compile_timeout_ms: 100] ++ opts)
+      assert {:ok, _pid} = Pool.start_link([compile_timeout_ms: 2_000] ++ opts)
     end
   end
 
   describe "compile/2" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
     test "compiles successfully with valid options" do
       opts = [
         # Use echo for testing
-        cmd: "echo",
+        cmd: @cli,
         input: "/tmp/test_input.css",
         output: "/tmp/test_output.css",
         content: "/tmp/test_content.html"
@@ -70,7 +96,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
     test "reuses ports for identical configurations" do
       opts = [
-        cmd: "echo",
+        cmd: @cli,
         input: "/tmp/test_input.css",
         output: "/tmp/test_output.css"
       ]
@@ -92,7 +118,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "batch_compile/1" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
@@ -100,13 +126,23 @@ defmodule Defdo.TailwindPort.PoolTest do
       operations = [
         %{
           id: :op1,
-          opts: [cmd: "echo", input: "/tmp/input1.css", output: "/tmp/output1.css"],
+          opts: [
+            cmd: @cli,
+            input: "/tmp/input1.css",
+            output: "/tmp/output1.css",
+            content: "/tmp/input1.css"
+          ],
           content: "<div class='bg-blue-500'>Test 1</div>",
           priority: :normal
         },
         %{
           id: :op2,
-          opts: [cmd: "echo", input: "/tmp/input2.css", output: "/tmp/output2.css"],
+          opts: [
+            cmd: @cli,
+            input: "/tmp/input2.css",
+            output: "/tmp/output2.css",
+            content: "/tmp/input2.css"
+          ],
           content: "<div class='bg-green-500'>Test 2</div>",
           priority: :high
         }
@@ -116,10 +152,15 @@ defmodule Defdo.TailwindPort.PoolTest do
       assert is_list(results)
       assert length(results) == 2
 
-      # Verify each result has the operation_id
-      operation_ids = Enum.map(results, & &1.operation_id)
-      assert :op1 in operation_ids
-      assert :op2 in operation_ids
+      # Each entry is the outcome of a real compile, tagged {:ok, result} or
+      # {:error, reason, id}. It used to be a fabricated map naming an output
+      # file that was never written.
+      assert [{:ok, first}, {:ok, second}] = results
+      assert Enum.sort([first.operation_id, second.operation_id]) == [:op1, :op2]
+
+      # The content each operation asked for actually reached the compiler.
+      assert first.compiled_css =~ "bg-blue-500"
+      assert second.compiled_css =~ "bg-green-500"
     end
 
     test "groups operations by configuration for efficiency" do
@@ -127,13 +168,13 @@ defmodule Defdo.TailwindPort.PoolTest do
       same_config_ops = [
         %{
           id: :same1,
-          opts: [cmd: "echo", input: "/tmp/same.css"],
+          opts: [cmd: @cli, input: "/tmp/same.css"],
           content: "<div>1</div>",
           priority: :normal
         },
         %{
           id: :same2,
-          opts: [cmd: "echo", input: "/tmp/same.css"],
+          opts: [cmd: @cli, input: "/tmp/same.css"],
           content: "<div>2</div>",
           priority: :normal
         }
@@ -154,7 +195,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "get_stats/0" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
@@ -187,7 +228,7 @@ defmodule Defdo.TailwindPort.PoolTest do
     test "tracks compilation counts correctly" do
       initial_stats = Pool.get_stats()
 
-      opts = [cmd: "echo", input: "/tmp/test.css"]
+      opts = [cmd: @cli, input: "/tmp/test.css"]
       content = "<div>Test</div>"
 
       {:ok, _result} = Pool.compile(opts, content)
@@ -199,14 +240,14 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "warm_up/1" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
     test "pre-creates ports for common configurations" do
       common_configs = [
-        [cmd: "echo", input: "/tmp/common1.css"],
-        [cmd: "echo", input: "/tmp/common2.css"]
+        [cmd: @cli, input: "/tmp/common1.css"],
+        [cmd: @cli, input: "/tmp/common2.css"]
       ]
 
       :ok = Pool.warm_up(common_configs)
@@ -231,17 +272,17 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "port pool management" do
     setup do
-      {:ok, _pid} = Pool.start_link(max_pool_size: 2, compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(max_pool_size: 2, compile_timeout_ms: 2_000)
       :ok
     end
 
     test "respects max pool size" do
       # Try to create more ports than max_pool_size
       opts_list = [
-        [cmd: "echo", input: "/tmp/test1.css"],
-        [cmd: "echo", input: "/tmp/test2.css"],
+        [cmd: @cli, input: "/tmp/test1.css"],
+        [cmd: @cli, input: "/tmp/test2.css"],
         # Should exceed max_pool_size of 2
-        [cmd: "echo", input: "/tmp/test3.css"]
+        [cmd: @cli, input: "/tmp/test3.css"]
       ]
 
       content = "<div>Test</div>"
@@ -259,7 +300,7 @@ defmodule Defdo.TailwindPort.PoolTest do
     end
 
     test "cleans up idle ports" do
-      opts = [cmd: "echo", input: "/tmp/idle_test.css"]
+      opts = [cmd: @cli, input: "/tmp/idle_test.css"]
       content = "<div>Test</div>"
 
       {:ok, _result} = Pool.compile(opts, content)
@@ -279,7 +320,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "error handling and recovery" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
@@ -301,7 +342,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
     test "recovers from port exits" do
       # This test would simulate a port crashing
-      opts = [cmd: "echo", input: "/tmp/test.css"]
+      opts = [cmd: @cli, input: "/tmp/test.css"]
       content = "<div>Test</div>"
 
       {:ok, _result} = Pool.compile(opts, content)
@@ -318,7 +359,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "telemetry integration" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
 
       # Attach test telemetry handler
       test_pid = self()
@@ -346,7 +387,7 @@ defmodule Defdo.TailwindPort.PoolTest do
     end
 
     test "emits telemetry events for compilations" do
-      opts = [cmd: "echo", input: "/tmp/telemetry_test.css"]
+      opts = [cmd: @cli, input: "/tmp/telemetry_test.css"]
       content = "<div>Test</div>"
 
       {:ok, _result} = Pool.compile(opts, content)
@@ -367,7 +408,7 @@ defmodule Defdo.TailwindPort.PoolTest do
     end
 
     test "emits pool management events" do
-      opts = [cmd: "echo", input: "/tmp/pool_test.css"]
+      opts = [cmd: @cli, input: "/tmp/pool_test.css"]
       content = "<div>Test</div>"
 
       # First compilation should create port
@@ -385,13 +426,13 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "configuration hashing" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 100)
+      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
       :ok
     end
 
     test "identical configurations produce same hash" do
-      opts1 = [cmd: "echo", input: "/tmp/same.css", output: "/tmp/out.css"]
-      opts2 = [cmd: "echo", input: "/tmp/same.css", output: "/tmp/out.css"]
+      opts1 = [cmd: @cli, input: "/tmp/same.css", output: "/tmp/out.css"]
+      opts2 = [cmd: @cli, input: "/tmp/same.css", output: "/tmp/out.css"]
 
       content = "<div>Test</div>"
 
@@ -404,8 +445,8 @@ defmodule Defdo.TailwindPort.PoolTest do
     end
 
     test "different configurations produce different hashes" do
-      opts1 = [cmd: "echo", input: "/tmp/different1.css"]
-      opts2 = [cmd: "echo", input: "/tmp/different2.css"]
+      opts1 = [cmd: @cli, input: "/tmp/different1.css"]
+      opts2 = [cmd: @cli, input: "/tmp/different2.css"]
 
       content = "<div>Test</div>"
 
