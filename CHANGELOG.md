@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🐛 Fixes
+- **A compile returned the PREVIOUS compile's CSS.** `Pool.compile/2` started
+  the CLI before writing the operation's content, so the run that produced the
+  output had compiled whatever was already on disk; the caller then accepted
+  that file because the pool's `last_output_mtime` baseline was recorded after
+  that same run. The result was an off-by-one reported as success — content A
+  compiled, then A's output returned for content B — and, in a fresh OS
+  process, an output file left by an earlier run returned as if it were this
+  one's result. Content is now staged (and the baseline taken) before any port
+  exists.
+- **Ports started without `--watch` are no longer reused.** That CLI compiles
+  once and exits, so a second operation on the same pooled port had nothing to
+  rewrite its output: the wait ran to timeout and returned the earlier artifact
+  as `readiness: :degraded`. Non-watch ports are now retired after use and a
+  fresh run is started; watch-mode ports stay poolable, which is what the pool
+  is for.
+
 ## [0.3.6] - 2026-07-11
 
 ### ✨ Features
