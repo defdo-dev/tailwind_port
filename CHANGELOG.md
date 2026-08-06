@@ -5,24 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.7] - 2026-08-05
 
 ### 🐛 Fixes
 - **A compile returned the PREVIOUS compile's CSS.** `Pool.compile/2` started
   the CLI before writing the operation's content, so the run that produced the
   output had compiled whatever was already on disk; the caller then accepted
-  that file because the pool's `last_output_mtime` baseline was recorded after
-  that same run. The result was an off-by-one reported as success — content A
-  compiled, then A's output returned for content B — and, in a fresh OS
-  process, an output file left by an earlier run returned as if it were this
-  one's result. Content is now staged (and the baseline taken) before any port
-  exists.
+  that file because the freshness baseline was recorded after that same run.
+  Content is now staged — and the previous artifact removed — before any port
+  exists, so the output's reappearance is the evidence it belongs to this
+  operation.
 - **Ports started without `--watch` are no longer reused.** That CLI compiles
   once and exits, so a second operation on the same pooled port had nothing to
   rewrite its output: the wait ran to timeout and returned the earlier artifact
-  as `readiness: :degraded`. Non-watch ports are now retired after use and a
-  fresh run is started; watch-mode ports stay poolable, which is what the pool
-  is for.
+  as `readiness: :degraded`. Non-watch ports are retired after use; watch-mode
+  ports stay poolable.
+- **`batch_compile/1` fabricated its results.** It wrote no content, ran no
+  CLI, waited on no file, and returned `compiled_css: "/tmp/batch_output_<ref>.css"`
+  — a path to a file that was never created — while incrementing build counts
+  and compilation totals. Every operation now goes through the real compile
+  path; entries are `{:ok, result}` or `{:error, reason, id}`.
+- **A failed capture returned the caller's own content as `compiled_css`.**
+  `fallback_css/2` ended in `operation.content`, so a caller could be handed
+  back the HTML it asked to compile, labelled as a stylesheet. Missing output
+  is now `{:error, :no_compiled_output}`, which also covers the empty string
+  every fallback strategy returns when it finds nothing (`""` is a binary, so
+  it used to pass as a successful compile).
+- **A timeout is an error, not a degraded success.** The deadline branch read
+  the output file unconditionally and returned its contents, with no evidence
+  they belonged to this operation.
+- **Freshness no longer depends on mtime.** `File.stat/2` reports whole
+  seconds, so two builds inside one second were indistinguishable — reachable
+  on any watch-mode port rebuilding shortly after the previous build. Output
+  is also required to be byte-identical across two consecutive reads, since
+  Tailwind truncates the file before writing and a read could land mid-write.
+
+### ⚙️ Changed
+- `compile_timeout_ms` default 5s → 20s. A cold Tailwind v4 run over a real
+  project takes several seconds; at 5s those compiles hit the deadline every
+  time, and a deadline now fails instead of quietly returning stale CSS.
 
 ## [0.3.6] - 2026-07-11
 

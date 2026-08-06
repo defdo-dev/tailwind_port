@@ -117,18 +117,6 @@ defmodule Defdo.TailwindPort.Pool do
     {:ok, state}
   end
 
-  defp process_operation_group(config_hash, ops, acc_results, acc_state) do
-    case find_or_create_port(config_hash, hd(ops).opts, acc_state) do
-      {:ok, port_info, new_state} ->
-        {batch_results, batch_state} = execute_batch_compilation(port_info, ops, new_state)
-        {acc_results ++ batch_results, batch_state}
-
-      {:error, _reason} ->
-        error_results = Enum.map(ops, fn op -> {:error, :port_unavailable, op.id} end)
-        {acc_results ++ error_results, acc_state}
-    end
-  end
-
   @impl true
   def handle_call({:compile, operation}, _from, state) do
     start_time = System.monotonic_time(:microsecond)
@@ -227,20 +215,25 @@ defmodule Defdo.TailwindPort.Pool do
 
   @impl true
   def handle_call({:batch_compile, operations}, _from, state) do
-    # Group operations by configuration for efficiency
-    normalized_ops =
-      Enum.map(operations, fn op ->
-        Map.update!(op, :opts, &normalize_operation_opts(&1, state.options))
-      end)
-
-    grouped_ops = group_operations_by_config(normalized_ops)
-
+    # Each operation goes through the real compile path. The previous
+    # implementation grouped operations by config and then SIMULATED them:
+    # `execute_batch_compilation/3` wrote no content, ran no CLI, waited on no
+    # file, and returned `compiled_css: "/tmp/batch_output_<ref>.css"` — a path
+    # to a file that was never created — while incrementing build counts and
+    # compilation totals. Every caller was told a batch had compiled.
+    #
+    # Operations still share pooled ports when their configs match; that is
+    # what the pool is for. What they no longer share is the pretence.
     {results, final_state} =
-      Enum.reduce(grouped_ops, {[], state}, fn {config_hash, ops}, {acc_results, acc_state} ->
-        process_operation_group(config_hash, ops, acc_results, acc_state)
+      Enum.reduce(operations, {[], state}, fn operation, {acc, acc_state} ->
+        {result, next_state} = compile_operation(operation, acc_state)
+        {[result | acc], next_state}
       end)
 
-    updated_stats = update_stats(final_state.stats, :batch_compile, length(operations))
+    results = Enum.reverse(results)
+    compiled = Enum.count(results, &match?({:ok, _}, &1))
+
+    updated_stats = update_stats(final_state.stats, :batch_compile, compiled)
     {:reply, {:ok, results}, %{final_state | stats: updated_stats}}
   end
 
@@ -587,36 +580,6 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
-  defp execute_batch_compilation(port_info, operations, state) do
-    # Execute multiple operations on the same port efficiently
-    {results, final_port_info} =
-      Enum.reduce(operations, {[], port_info}, fn operation, {acc_results, acc_port_info} ->
-        # Simulate batch execution - in real implementation,
-        # this would optimize file writing and port communication
-        result = %{
-          compiled_css: "/tmp/batch_output_#{operation.id}.css",
-          port: acc_port_info.port,
-          operation_id: operation.id
-        }
-
-        updated_port_info = %{acc_port_info | build_count: acc_port_info.build_count + 1}
-
-        {[result | acc_results], updated_port_info}
-      end)
-
-    # Update port info in pool
-    final_port_info = %{
-      final_port_info
-      | status: :idle,
-        last_used: System.monotonic_time(:millisecond)
-    }
-
-    updated_pool = Map.put(state.port_pool, port_info.config_hash, final_port_info)
-    new_state = %{state | port_pool: updated_pool}
-
-    {Enum.reverse(results), new_state}
-  end
-
   defp ensure_fs_state(port_info, state, operation) do
     updated_port_info =
       if Map.has_key?(port_info, :paths) do
@@ -649,6 +612,27 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
+  # One operation, start to finish, against the same state the caller holds.
+  defp compile_operation(operation, state) do
+    normalized =
+      operation
+      |> Map.update!(:opts, &normalize_operation_opts(&1, state.options))
+      |> stage_operation()
+
+    config_hash = hash_config(normalized.opts)
+
+    case find_or_create_port(config_hash, normalized.opts, state) do
+      {:ok, port_info, new_state} ->
+        case execute_compilation(port_info, normalized, new_state) do
+          {:ok, result, final_state} -> {{:ok, result}, final_state}
+          {:error, reason, final_state} -> {{:error, reason, operation.id}, final_state}
+        end
+
+      {:error, reason} ->
+        {{:error, reason, operation.id}, state}
+    end
+  end
+
   # Writes the operation's content and records what the output file looked like
   # BEFORE anything could recompile it. Both halves matter:
   #
@@ -670,7 +654,13 @@ defmodule Defdo.TailwindPort.Pool do
            :ok <- ensure_directory(paths[:output_path]),
            :ok <- ensure_directory(paths[:input_path]),
            :ok <- File.write(path, operation.content) do
-        file_mtime(paths[:output_path])
+        # Remove the previous artifact so its REAPPEARANCE is the proof this
+        # run produced it. Comparing content instead would call a legitimate
+        # recompile of unchanged input "no change" — identical bytes are the
+        # normal case, not a symptom — and comparing mtime cannot see two
+        # builds inside one second, since `File.stat/2` reports whole seconds.
+        File.rm(paths[:output_path])
+        :absent
       else
         _ -> :unstaged
       end
@@ -712,14 +702,15 @@ defmodule Defdo.TailwindPort.Pool do
   end
 
   # The staged baseline is what the output looked like before this operation's
-  # content existed. `last_output_mtime` is not a substitute: it is recorded
+  # content existed. The port's own record is not a substitute: it is taken
   # after the port starts, so it already describes the stale run's output.
   defp baseline_mtime(port_info, %{staged_baseline: :unstaged}),
-    do: Map.get(port_info, :last_output_mtime)
+    do: Map.get(port_info, :last_output_fingerprint, :absent)
 
   defp baseline_mtime(_port_info, %{staged_baseline: baseline}), do: baseline
 
-  defp baseline_mtime(port_info, _operation), do: Map.get(port_info, :last_output_mtime)
+  defp baseline_mtime(port_info, _operation),
+    do: Map.get(port_info, :last_output_fingerprint, :absent)
 
   # Fallback to original file-based capture when immediate capture fails
   defp fallback_to_file_based_capture(port_info, working_paths, options, previous_mtime) do
@@ -767,6 +758,19 @@ defmodule Defdo.TailwindPort.Pool do
           fallback_css(port_info, operation)
       end
 
+    finalize_with_css(css, port_info, state, readiness, build_info, operation)
+  end
+
+  # No artifact is a failure. It used to be a success carrying `""` (the empty
+  # string every fallback strategy returns when it finds nothing, and a binary,
+  # so it passed the `is_binary/1` check above) or the caller's own content.
+  # Both shapes told the caller a stylesheet had been produced.
+  defp finalize_with_css(css, _port_info, state, _readiness, _build_info, _operation)
+       when css in [nil, ""] do
+    {:error, :no_compiled_output, state}
+  end
+
+  defp finalize_with_css(css, port_info, state, readiness, build_info, operation) do
     result = %{
       compiled_css: css,
       output_path: build_info[:output_path],
@@ -781,13 +785,13 @@ defmodule Defdo.TailwindPort.Pool do
       |> Map.update(:build_count, 1, &(&1 + 1))
       |> Map.put(:last_used, System.monotonic_time(:millisecond))
       |> Map.put(:last_output_mtime, build_info[:new_mtime] || port_info[:last_output_mtime])
+      |> Map.put(
+        :last_output_fingerprint,
+        build_info[:fingerprint] || port_info[:last_output_fingerprint] || :absent
+      )
 
     updated_pool = Map.put(state.port_pool, port_info.config_hash, updated_port_info)
     {:ok, result, %{state | port_pool: updated_pool}}
-  end
-
-  defp group_operations_by_config(operations) do
-    Enum.group_by(operations, fn op -> hash_config(op.opts) end)
   end
 
   defp hash_config(opts) do
@@ -1270,6 +1274,7 @@ defmodule Defdo.TailwindPort.Pool do
     port_info
     |> Map.put(:paths, paths)
     |> Map.put(:last_output_mtime, file_mtime(paths[:output_path]))
+    |> Map.put(:last_output_fingerprint, file_fingerprint(paths[:output_path]))
   end
 
   defp build_port_paths(opts) do
@@ -1329,61 +1334,60 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
-  defp await_file_update(path, previous_mtime, timeout_ms) do
+  # Waits for the artifact this operation produced.
+  #
+  # Staging removed the previous output, so its reappearance is the evidence.
+  # The old test — `mtime > previous` — could not provide any: `File.stat/2`
+  # reports whole seconds, so two builds inside one second are identical to
+  # it, which a watch-mode port rebuilding 200ms later hits every time.
+  #
+  # Stability, not first sight: Tailwind truncates the file before writing it,
+  # so a read can land mid-write. Content has to match across two consecutive
+  # reads before it counts as finished.
+  #
+  # Timing out is an error, not a degraded success. Returning the file as-is
+  # was the same defect in another place: no evidence it belongs to this
+  # operation, reported as `{:ok, ...}`.
+  defp await_file_update(path, baseline, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
-    do_await_file_update(path, previous_mtime, deadline)
+    do_await_file_update(path, baseline, deadline, nil)
   end
 
-  defp do_await_file_update(path, previous_mtime, deadline) do
-    now = System.monotonic_time(:millisecond)
-
-    if now >= deadline do
-      case read_output_file(path) do
-        {:ok, css, mtime} ->
-          {:degraded,
-           %{
-             css: css,
-             output_path: path,
-             new_mtime: mtime,
-             reason: :timeout
-           }}
-
-        {:error, _} ->
-          {:degraded,
-           %{
-             css: nil,
-             output_path: path,
-             new_mtime: previous_mtime,
-             reason: :timeout
-           }}
-      end
+  defp do_await_file_update(path, baseline, deadline, candidate) do
+    if System.monotonic_time(:millisecond) >= deadline do
+      {:error, :compile_timeout}
     else
-      handle_file_read_result(path, previous_mtime, deadline)
+      handle_file_read_result(path, baseline, deadline, candidate)
     end
   end
 
-  defp handle_file_read_result(path, previous_mtime, deadline) do
+  defp handle_file_read_result(path, baseline, deadline, candidate) do
     case read_output_file(path) do
       {:ok, css, mtime} ->
-        if previous_mtime == nil or mtime > previous_mtime do
-          {:ok,
-           %{
-             css: css,
-             output_path: path,
-             new_mtime: mtime
-           }}
-        else
-          Process.sleep(75)
-          do_await_file_update(path, previous_mtime, deadline)
+        fingerprint = fingerprint(css, mtime)
+
+        cond do
+          fingerprint == baseline ->
+            retry_await(path, baseline, deadline, nil)
+
+          fingerprint == candidate ->
+            {:ok, %{css: css, output_path: path, new_mtime: mtime, fingerprint: fingerprint}}
+
+          true ->
+            retry_await(path, baseline, deadline, fingerprint)
         end
 
       {:error, :enoent} ->
-        Process.sleep(75)
-        do_await_file_update(path, previous_mtime, deadline)
+        retry_await(path, baseline, deadline, nil)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp retry_await(path, baseline, deadline, candidate) do
+    Process.sleep(75)
+    do_await_file_update(path, baseline, deadline, candidate)
   end
 
   defp read_output_file(path) do
@@ -1396,6 +1400,18 @@ defmodule Defdo.TailwindPort.Pool do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # The identity of an output file: what it says, not when it was touched.
+  defp fingerprint(css, mtime), do: {mtime, byte_size(css), :erlang.md5(css)}
+
+  defp file_fingerprint(nil), do: :absent
+
+  defp file_fingerprint(path) do
+    case read_output_file(path) do
+      {:ok, css, mtime} -> fingerprint(css, mtime)
+      {:error, _reason} -> :absent
     end
   end
 
@@ -1589,8 +1605,13 @@ defmodule Defdo.TailwindPort.Pool do
       nil
   end
 
-  defp fallback_css(port_info, operation) do
-    fetch_latest_output(port_info.pid) || operation.content
+  # The caller's own content is NOT a compile result. Returning it here meant
+  # `{:ok, %{compiled_css: "<div class='...'>"}}` — the HTML that was supposed
+  # to be compiled, handed back as the stylesheet. Whatever the port preserved
+  # from an earlier build is at least CSS, but it is not this operation's, so
+  # it is only ever a degraded answer; when there is nothing, say so.
+  defp fallback_css(port_info, _operation) do
+    fetch_latest_output(port_info.pid)
   end
 
   defp default_options do
@@ -1600,7 +1621,12 @@ defmodule Defdo.TailwindPort.Pool do
       enable_batching: true,
       cleanup_interval: @port_idle_timeout,
       baseline_compilation_time_ms: nil,
-      compile_timeout_ms: 5_000
+      # A cold Tailwind v4 run over a real project takes multiple seconds —
+      # ~6s for a themed app here. At 5s those compiles hit the deadline every
+      # time, and a deadline used to return the previous artifact as success;
+      # now it is an error, so the old default would turn working builds into
+      # failures. Still well under the 30s `GenServer.call` timeout.
+      compile_timeout_ms: 20_000
     ]
   end
 end
