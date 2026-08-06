@@ -9,13 +9,13 @@ on:
 jobs:
   validate-and-test:
     name: Validate and Test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        otp: ['27']
-        elixir: ['1.17']
+        otp: ['28.1']
+        elixir: ['1.19']
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     
     - name: Setup Elixir
       uses: erlef/setup-beam@v1
@@ -45,7 +45,7 @@ jobs:
         
         echo "✅ Version validation passed: $TAG_VERSION"
     
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       with:
         path: |
           deps
@@ -74,15 +74,15 @@ jobs:
 
   publish:
     name: Publish to Hex.pm
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: validate-and-test
     environment: production
     strategy:
       matrix:
-        otp: ['27']
-        elixir: ['1.17']
+        otp: ['28.1']
+        elixir: ['1.19']
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     
     - name: Setup Elixir
       uses: erlef/setup-beam@v1
@@ -93,7 +93,7 @@ jobs:
         install-hex: true
         install-rebar: true
     
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       with:
         path: |
           deps
@@ -129,7 +129,7 @@ jobs:
 
   notify-discord:
     name: Discord Notification
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [validate-and-test, publish]
     if: always()
     steps:
@@ -178,7 +178,7 @@ jobs:
     # Non-blocking until the docs portal is live and FOSS_PUBLISH_TOKEN exists
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: erlef/setup-beam@v1
       with:
         elixir-version: '1.19'
