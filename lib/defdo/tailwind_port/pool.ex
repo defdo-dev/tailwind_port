@@ -152,6 +152,12 @@ defmodule Defdo.TailwindPort.Pool do
       }
     )
 
+    # Stage the operation's content BEFORE any port exists. Starting the port
+    # runs the CLI immediately against whatever is on disk, so writing the
+    # content afterwards means the run that produces the output compiled the
+    # PREVIOUS content — the caller gets a stale artifact reported as success.
+    normalized_operation = stage_operation(normalized_operation)
+
     case find_or_create_port(config_hash, normalized_operation.opts, state) do
       {:ok, port_info, new_state} ->
         case execute_compilation(port_info, normalized_operation, new_state) do
@@ -367,6 +373,14 @@ defmodule Defdo.TailwindPort.Pool do
 
   defp find_or_create_port(config_hash, opts, state) do
     case Map.get(state.port_pool, config_hash) do
+      # A CLI started without --watch compiles once and exits. Reusing that
+      # port cannot produce a new artifact: nothing rewrites the output, the
+      # wait times out, and the previous compile's CSS comes back as this
+      # one's result. Retire it and start a run that can see the new content.
+      # Watch-mode ports stay poolable — that is what they are for.
+      %{status: :idle, watch?: false} = port_info ->
+        create_new_port(config_hash, opts, retire_port(config_hash, port_info, state))
+
       %{status: :idle} = port_info ->
         # Reuse existing idle port
         updated_port_info = %{
@@ -436,7 +450,8 @@ defmodule Defdo.TailwindPort.Pool do
           last_used: System.monotonic_time(:millisecond),
           status: :busy,
           build_count: 0,
-          created_at: System.monotonic_time(:millisecond)
+          created_at: System.monotonic_time(:millisecond),
+          watch?: watch_mode?(opts)
         }
 
         port_info = initialize_port_metadata(port_info, opts)
@@ -479,7 +494,8 @@ defmodule Defdo.TailwindPort.Pool do
           last_used: System.monotonic_time(:millisecond),
           status: :busy,
           build_count: 0,
-          created_at: System.monotonic_time(:millisecond)
+          created_at: System.monotonic_time(:millisecond),
+          watch?: watch_mode?(opts)
         }
 
         existing_info = initialize_port_metadata(existing_info, opts)
@@ -549,11 +565,12 @@ defmodule Defdo.TailwindPort.Pool do
   defp perform_compilation(port_info, operation, state, readiness) do
     with {:ok, port_info, state} <- ensure_fs_state(port_info, state, operation),
          {:ok, working_paths} <- prepare_working_files(port_info),
-         :ok <- write_operation_content(working_paths, operation.content) do
+         :ok <- maybe_write_operation_content(working_paths, operation) do
       case fallback_to_file_based_capture(
              port_info,
              working_paths,
-             state.options
+             state.options,
+             baseline_mtime(port_info, operation)
            ) do
         {:ok, build_info} ->
           finalize_compilation(port_info, state, readiness, build_info, operation)
@@ -632,6 +649,42 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
+  # Writes the operation's content and records what the output file looked like
+  # BEFORE anything could recompile it. Both halves matter:
+  #
+  #   * the content has to be on disk before the CLI starts, or the startup run
+  #     compiles the previous operation's content;
+  #   * the baseline has to be taken before that run, or "the output changed"
+  #     is measured against the very file the stale run just wrote.
+  #
+  # Failures here are not fatal: the port path re-creates directories and can
+  # still write the content itself, so staging degrades to the old behaviour
+  # rather than failing the compile.
+  defp stage_operation(operation) do
+    paths = build_port_paths(operation.opts)
+    content_path = primary_content_path(paths)
+
+    baseline =
+      with path when is_binary(path) <- content_path,
+           :ok <- ensure_directory(path),
+           :ok <- ensure_directory(paths[:output_path]),
+           :ok <- ensure_directory(paths[:input_path]),
+           :ok <- File.write(path, operation.content) do
+        file_mtime(paths[:output_path])
+      else
+        _ -> :unstaged
+      end
+
+    Map.put(operation, :staged_baseline, baseline)
+  end
+
+  defp primary_content_path(paths) do
+    case select_primary_content_path(paths[:content_paths]) do
+      {:ok, path} -> path
+      _ -> paths[:input_path]
+    end
+  end
+
   defp prepare_working_files(%{paths: paths}) do
     case Map.get(paths, :primary_content_path) do
       nil ->
@@ -647,14 +700,30 @@ defmodule Defdo.TailwindPort.Pool do
     end
   end
 
-  defp write_operation_content(%{content_path: content_path}, content) do
-    File.write(content_path, content)
+  # Staging already wrote the content; rewriting it here would only re-trigger
+  # a watcher for no reason. When staging could not run, this is still the one
+  # place the content reaches disk.
+  defp maybe_write_operation_content(_working_paths, %{staged_baseline: baseline})
+       when baseline != :unstaged,
+       do: :ok
+
+  defp maybe_write_operation_content(%{content_path: content_path}, operation) do
+    File.write(content_path, operation.content)
   end
 
+  # The staged baseline is what the output looked like before this operation's
+  # content existed. `last_output_mtime` is not a substitute: it is recorded
+  # after the port starts, so it already describes the stale run's output.
+  defp baseline_mtime(port_info, %{staged_baseline: :unstaged}),
+    do: Map.get(port_info, :last_output_mtime)
+
+  defp baseline_mtime(_port_info, %{staged_baseline: baseline}), do: baseline
+
+  defp baseline_mtime(port_info, _operation), do: Map.get(port_info, :last_output_mtime)
+
   # Fallback to original file-based capture when immediate capture fails
-  defp fallback_to_file_based_capture(port_info, working_paths, options) do
+  defp fallback_to_file_based_capture(port_info, working_paths, options, previous_mtime) do
     output_path = working_paths.output_path
-    previous_mtime = Map.get(port_info, :last_output_mtime)
     timeout_ms = Keyword.get(options, :compile_timeout_ms, 5_000)
 
     if is_nil(output_path) do
@@ -850,6 +919,28 @@ defmodule Defdo.TailwindPort.Pool do
     else
       Logger.info("Tailwind process #{inspect(pid)} went down: #{inspect(reason)}")
       %{state | port_pool: Map.new(kept), stats: new_stats}
+    end
+  end
+
+  # Drops a spent port from the pool and stops its process. The monitor goes
+  # first so the resulting :DOWN does not arrive as an unexplained port death.
+  defp retire_port(config_hash, port_info, state) do
+    demonitor_port(port_info)
+
+    if is_pid(port_info[:pid]) and Process.alive?(port_info[:pid]) do
+      GenServer.stop(port_info[:pid], :normal, 1_000)
+    end
+
+    %{state | port_pool: Map.delete(state.port_pool, config_hash)}
+  catch
+    :exit, _reason -> %{state | port_pool: Map.delete(state.port_pool, config_hash)}
+  end
+
+  defp watch_mode?(opts) do
+    case Keyword.get(opts, :watch) do
+      nil -> false
+      false -> false
+      _ -> true
     end
   end
 
