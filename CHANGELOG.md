@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0
+
+### Every requirement declares the line it resolves on
+
+**Unbounded** — a `>=` with no ceiling accepts every version ever published,
+including ones that do not exist yet, and nothing verifies that claim:
+
+- `castore` `>= 0.0.0` -> `~> 1.0` (resolves 1.0.20).
+- `ex_doc` `>= 0.0.0` -> `~> 0.40` (resolves 0.40.3).
+
+**Lagging** — the floor sat below what the lock resolves:
+
+- `telemetry` `~> 1.2` -> `~> 1.4` (resolves 1.4.1).
+- `telemetry_metrics` `~> 1.0` -> `~> 1.1` (resolves 1.1.0).
+
+Minor rather than patch: no source changed, but a narrowed requirement is not
+something a consumer can take blindly.
+
+**One consumer must edit to follow.** `defdo_theme` declares
+`tailwind_port ~> 0.3.6` — three segments, capping at `< 0.4.0`. It will stay
+on 0.3.x silently until it declares `~> 0.4`. `tailwind_compiler` declares
+`~> 0.3`, which is two-segment and follows on its own.
+
+416 tests, 0 failures. `mix hex.outdated` empty.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
