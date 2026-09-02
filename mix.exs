@@ -7,7 +7,7 @@ defmodule TailwindPort.MixProject do
   def project do
     [
       app: :tailwind_port,
-      version: "0.5.0",
+      version: "0.5.1",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -37,7 +37,10 @@ defmodule TailwindPort.MixProject do
           "guides/API_REFERENCE.md",
           "guides/MIGRATION_GUIDE.md",
           "guides/PERFORMANCE.md",
-          "CHANGELOG.md"
+          "guides/TAILWIND_VERSION_COMPATIBILITY.md",
+          "guides/notes/TIMING_FIX.md",
+          "CHANGELOG.md",
+          "LICENSE"
         ],
         groups_for_extras: [
           "Getting Started": ["README.md", "guides/QUICK_START.md"],
@@ -47,8 +50,13 @@ defmodule TailwindPort.MixProject do
             "guides/EXAMPLES.md",
             "guides/PERFORMANCE.md"
           ],
-          Reference: ["guides/API_REFERENCE.md", "guides/MIGRATION_GUIDE.md"],
-          "Project Info": ["CHANGELOG.md"]
+          Reference: [
+            "guides/API_REFERENCE.md",
+            "guides/MIGRATION_GUIDE.md",
+            "guides/TAILWIND_VERSION_COMPATIBILITY.md",
+            "guides/notes/TIMING_FIX.md"
+          ],
+          "Project Info": ["CHANGELOG.md", "LICENSE"]
         ]
       ]
     ]

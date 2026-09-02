@@ -1,0 +1,83 @@
+# Until this existed, a pull request in this repo ran nothing at all: the only
+# workflow triggered on tags, so the first automated check on a change was the
+# one that also published it to Hex.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and lint
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        otp: ['28.1']
+        elixir: ['1.19']
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.elixir }}
+        version-type: loose
+        install-hex: true
+        install-rebar: true
+
+    - uses: actions/cache@v5
+      with:
+        path: |
+          deps
+          _build
+        key: ${{ runner.os }}-mix-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-${{ matrix.otp }}-${{ matrix.elixir }}-
+
+    - name: Install dependencies
+      run: mix deps.get
+
+    - name: Download Tailwind CSS binary
+      env:
+        # Pinned deliberately. This library's whole subject is that a binary
+        # which merely exists is not the binary you asked for.
+        TAILWIND_CLI_VERSION: '4.3.3'
+      run: |
+        mkdir -p priv/bin
+        curl -sLo priv/bin/tailwindcss \
+          "https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_CLI_VERSION}/tailwindcss-linux-x64"
+        chmod +x priv/bin/tailwindcss
+        priv/bin/tailwindcss --help | head -1
+
+    - name: Compile with warnings as errors
+      run: mix compile --warnings-as-errors
+
+    - name: Check formatting
+      run: mix format --check-formatted
+
+    - name: Credo
+      run: mix credo --strict
+
+    - name: Test
+      run: mix test
+
+    - name: Unused dependencies
+      run: mix deps.unlock --check-unused
+
+    - name: Docs build without warnings
+      # `mix docs` does not fail on a broken reference, so a dangling link only
+      # surfaced during a release. Turn its warnings into a check.
+      run: |
+        mix docs 2>&1 | tee docs.log
+        if grep -q "warning:" docs.log; then
+          echo "::error::mix docs emitted warnings"
+          grep "warning:" docs.log
+          exit 1
+        fi
