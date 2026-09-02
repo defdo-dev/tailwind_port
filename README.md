@@ -234,7 +234,7 @@ Comprehensive documentation is available to help you get started and make the mo
 
 ### 📋 **Project Information**
 - **[Changelog](CHANGELOG.md)** - Version history and changes
-- **[Architecture Overview](CLAUDE.md)** - Technical architecture details
+- **[Architecture Overview](https://github.com/defdo-dev/tailwind_port/blob/main/CLAUDE.md)** - Technical architecture details
 
 ## Quick Links
 

@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.5.1
+
+### A pull request in this repo ran nothing
+
+The only workflow triggered on tags, so the first automated check on a change
+was the one that also published it to Hex. `ci.yml` now runs on every pull
+request: `compile --warnings-as-errors`, `format --check-formatted`,
+`credo --strict`, `test`, `deps.unlock --check-unused`, and a docs build that
+fails on any ex_doc warning.
+
+### A two-argument Keyword type does not exist
+
+`@type cli_options :: Keyword.t(cli_option(), cli_value())` named a type Elixir
+does not define — `t:Keyword.t/0` and `t:Keyword.t/1` are the only arities. Now
+`[{cli_option(), cli_value()}]`, which is what it meant. Found by reading the
+docs job's warnings, which nothing had been failing on.
+
+### A failed docs upload was announced nowhere
+
+`publish-docs` carries `continue-on-error: true`, so 0.5.0 reported
+`conclusion=success` while its docs upload died on HTTP 401. The Discord
+notification did not depend on that job and could not see it. It does now, and
+the upload step distinguishes an unset token (skip, expected before the portal
+exists) from a token that was rejected (error, naming the status code in the
+run summary).
+
+Four dangling doc references fixed: `LICENSE`, `CLAUDE.md`,
+`guides/TAILWIND_VERSION_COMPATIBILITY.md` and `guides/notes/TIMING_FIX.md`
+were linked but not listed in `extras`, so ex_doc could not resolve them. The
+first two exist in the repo; the last two were written guides that had simply
+never been published.
+
+### The release job installed an unpinned CLI
+
+It fetched `releases/latest`, so tests ran against whatever upstream shipped
+that day and nothing recorded which. Pinned to 4.3.3, in a library whose entire
+subject is that a binary which merely exists is not the binary you asked for.
+
+437 tests, 0 failures. `mix docs` warning-free.
+
 ## 0.5.0
 
 ### An installed binary is checked against the configured version
@@ -173,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Solution**: Implemented `Defdo.TailwindPort.CliCompatibility` module with automatic version detection and option filtering
   - **Impact**: Eliminates "invalid option in list" errors and enables seamless v3/v4 coexistence
 
-- **Keyword Processing Bug**: Fixed `FunctionClauseError` in `Keyword.do_reject/2` due to type mismatch
+- **Keyword Processing Bug**: Fixed `FunctionClauseError` in the private `do_reject/2` clause of `Keyword` due to type mismatch
   - **Root Cause**: Passing string lists to functions expecting keyword lists
   - **Solution**: Clean refactor with proper type handling and conversion
   - **Impact**: Restores all pool functionality and eliminates crashes

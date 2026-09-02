@@ -71,7 +71,9 @@ defmodule Defdo.TailwindPort.CliCompatibility do
   @typedoc """
   List of CLI options for Tailwind compilation.
   """
-  @type cli_options :: Keyword.t(cli_option(), cli_value())
+  # Not `Keyword.t/2`: Elixir defines `Keyword.t/0` and `Keyword.t/1` only, so
+  # the two-argument form named a type that does not exist.
+  @type cli_options :: [{cli_option(), cli_value()}]
 
   # CLI options available in Tailwind v3 but REMOVED in v4
   @v3_only_options [
