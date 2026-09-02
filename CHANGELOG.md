@@ -24,17 +24,43 @@ channel accepts the `4.3.2` its binary reports rather than re-downloading on
 every boot. A binary that cannot be interrogated is kept and logged, not
 replaced — an unreadable version is not evidence of a wrong one.
 
-**What this does not catch.** The check compares versions, not builds. The
-defdo daisyUI CLI and stock upstream both report `v4.3.3`, so a stock binary
-sitting where a daisyUI one belongs still passes. Distinguishing those needs a
-capability probe, not a version string; `assets.setup` aliases in the consuming
-apps handle it today by never passing `--if-missing`.
+### An installed binary is checked against the build it should be
+
+A version is not an identity. The defdo daisyUI CLI and the stock upstream
+binary both report `v4.3.3`, so a stock binary sitting where a daisyUI one
+belongs passes every version check there is — and then fails at build time on
+`Can't resolve 'daisyui'`, or silently produces CSS without the plugin's
+classes.
+
+`BinaryManager.probe_plugin/2` asks what the binary can compile instead of
+what it calls itself, and `:required_plugins` declares what yours must carry:
+
+    config :tailwind_port, required_plugins: ["daisyui"]
+    config :tailwind_port, required_plugins: [{"daisyui", "5.7.4"}]
+
+Verified against the real artifacts, not fixtures: the defdo build answers
+`{:ok, "5.7.4"}` and stock upstream v4.3.3 answers `{:error,
+:plugin_unavailable}`. The pinned form catches the other half of the same
+trap — a build carrying daisyUI 5.4.3 under a 4.3.3 Tailwind.
+
+The probe compiles in an empty temporary directory, because plugin resolution
+walks up from the input file: probing inside a project with
+`node_modules/daisyui` would let a stock binary pass on the project's copy.
+Confirmed by probing the stock binary from exactly such a directory — it still
+reports the plugin as unavailable.
+
+Defaults to `[]`, so this is opt-in. A plugin that resolves without announcing
+a version is accepted, and a binary that cannot be interrogated is kept, on the
+same reasoning as the version check.
+
+**Dependencies.** `telemetry_metrics` `~> 1.1` -> `~> 1.2` (resolves 1.2.0);
+the release gate does not pass with an updatable dependency outstanding.
 
 **Consumers follow on their own.** `tailwind_compiler` and `defdo_theme` both
 declare `tailwind_port ~> 0.4`, which is two-segment and caps at `< 1.0`.
 Neither has to edit anything to pick this up.
 
-427 tests, 0 failures.
+437 tests, 0 failures.
 
 ## 0.4.0
 

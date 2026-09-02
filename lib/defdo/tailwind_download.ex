@@ -419,15 +419,27 @@ defmodule Defdo.TailwindDownload do
 
           download(path, base_url)
 
+        {:wrong_build, plugin, detail} ->
+          Logger.warning(
+            "Tailwind binary at #{path} is the right version but #{describe_plugin_problem(plugin, detail)}. Re-downloading."
+          )
+
+          download(path, base_url)
+
         {:undetermined, reason} ->
           Logger.warning(
-            "Could not read the version of the Tailwind binary at #{path} (#{inspect(reason)}). Keeping it as is."
+            "Could not interrogate the Tailwind binary at #{path} (#{inspect(reason)}). Keeping it as is."
           )
 
           :ok
       end
     end
   end
+
+  defp describe_plugin_problem(plugin, :missing), do: "does not bundle #{plugin}"
+
+  defp describe_plugin_problem(plugin, {:version, found, wanted}),
+    do: "bundles #{plugin} #{found} instead of #{wanted}"
 
   # A binary that merely exists is not the binary that was asked for. Whoever
   # put it there may have installed a different version, and nothing on disk
@@ -451,10 +463,49 @@ defmodule Defdo.TailwindDownload do
 
     case BinaryManager.installed_version(path) do
       {:ok, found} ->
-        if same_release?(found, wanted), do: :matches, else: {:mismatch, found, wanted}
+        if same_release?(found, wanted),
+          do: check_required_plugins(path),
+          else: {:mismatch, found, wanted}
 
       {:error, :enoent} ->
         :absent
+
+      {:error, reason} ->
+        {:undetermined, reason}
+    end
+  end
+
+  # The version says which Tailwind release this is. It does not say which
+  # BUILD: a custom CLI and the stock upstream one report the same version, so
+  # a stock binary at the right version passes every version check there is.
+  # What separates them is what they can compile.
+  defp check_required_plugins(path) do
+    ConfigManager.required_plugins()
+    |> Enum.reduce_while(:matches, fn {plugin, wanted}, _acc ->
+      case check_plugin(path, plugin, wanted) do
+        :matches -> {:cont, :matches}
+        problem -> {:halt, problem}
+      end
+    end)
+  end
+
+  defp check_plugin(path, plugin, wanted) do
+    case BinaryManager.probe_plugin(path, plugin) do
+      {:ok, _found} when is_nil(wanted) ->
+        :matches
+
+      {:ok, nil} ->
+        # It resolved, but said nothing about its version. That is not evidence
+        # of the wrong version, so do not destroy the binary over it.
+        {:undetermined, {:plugin_version_unreported, plugin}}
+
+      {:ok, found} ->
+        if same_release?(found, wanted),
+          do: :matches,
+          else: {:wrong_build, plugin, {:version, found, wanted}}
+
+      {:error, :plugin_unavailable} ->
+        {:wrong_build, plugin, :missing}
 
       {:error, reason} ->
         {:undetermined, reason}
