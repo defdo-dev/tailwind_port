@@ -44,6 +44,41 @@ defmodule Defdo.TailwindPort.BinaryVersionTest do
     path
   end
 
+  # Stands in for a build with a plugin bundled: the version banner on --help,
+  # and on a compile it announces the plugin the way daisyUI does.
+  defp fake_cli_with_plugin(dir, reported_version, plugin, plugin_version) do
+    path = Path.join(dir, "tailwindcss")
+
+    File.write!(path, """
+    #!/bin/sh
+    echo "≈ tailwindcss v#{reported_version}"
+    case "$*" in
+      *--input*) echo "/*! 🌼 #{plugin} #{plugin_version} */" ;;
+    esac
+    exit 0
+    """)
+
+    File.chmod!(path, 0o755)
+    path
+  end
+
+  # Stands in for the stock upstream build: same version, no plugin.
+  defp fake_cli_without_plugin(dir, reported_version) do
+    path = Path.join(dir, "tailwindcss")
+
+    File.write!(path, """
+    #!/bin/sh
+    echo "≈ tailwindcss v#{reported_version}"
+    case "$*" in
+      *--input*) echo "Error: Can't resolve 'daisyui'"; exit 1 ;;
+    esac
+    exit 0
+    """)
+
+    File.chmod!(path, 0o755)
+    path
+  end
+
   describe "installed_version/1" do
     test "reads the version the binary reports", %{dir: dir} do
       assert {:ok, "4.3.3"} = BinaryManager.installed_version(fake_cli(dir, "4.3.3"))
@@ -117,6 +152,90 @@ defmodule Defdo.TailwindPort.BinaryVersionTest do
       Application.put_env(:tailwind_port, :version, "4.3.3")
 
       assert :ok = TailwindDownload.install(path, @unreachable_url)
+    end
+  end
+
+  describe "probe_plugin/2" do
+    test "reports the bundled plugin version", %{dir: dir} do
+      path = fake_cli_with_plugin(dir, "4.3.3", "daisyui", "5.7.4")
+
+      assert {:ok, "5.7.4"} = BinaryManager.probe_plugin(path, "daisyui")
+    end
+
+    test "reports a build that cannot resolve the plugin", %{dir: dir} do
+      path = fake_cli_without_plugin(dir, "4.3.3")
+
+      assert {:error, :plugin_unavailable} = BinaryManager.probe_plugin(path, "daisyui")
+    end
+
+    test "accepts a plugin that resolves without announcing a version", %{dir: dir} do
+      path = Path.join(dir, "tailwindcss")
+      File.write!(path, "#!/bin/sh\necho \"≈ tailwindcss v4.3.3\"\nexit 0\n")
+      File.chmod!(path, 0o755)
+
+      assert {:ok, nil} = BinaryManager.probe_plugin(path, "daisyui")
+    end
+  end
+
+  describe "install/2 build gate" do
+    setup %{dir: dir} do
+      Application.put_env(:tailwind_port, :version, "4.3.3")
+      plugins = Application.get_env(:tailwind_port, :required_plugins)
+      on_exit(fn -> restore(:required_plugins, plugins) end)
+      {:ok, dir: dir}
+    end
+
+    test "keeps a binary that bundles the required plugin", %{dir: dir} do
+      path = fake_cli_with_plugin(dir, "4.3.3", "daisyui", "5.7.4")
+      Application.put_env(:tailwind_port, :required_plugins, ["daisyui"])
+
+      assert :ok = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "replaces the right version from the wrong build", %{dir: dir} do
+      # This is the case no version check can catch: the stock upstream binary
+      # reports exactly the version that was configured.
+      path = fake_cli_without_plugin(dir, "4.3.3")
+      Application.put_env(:tailwind_port, :required_plugins, ["daisyui"])
+
+      assert {:error, _} = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "replaces a build carrying the wrong plugin version", %{dir: dir} do
+      path = fake_cli_with_plugin(dir, "4.3.3", "daisyui", "5.4.3")
+      Application.put_env(:tailwind_port, :required_plugins, [{"daisyui", "5.7.4"}])
+
+      assert {:error, _} = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "ignores the plugin version when none is pinned", %{dir: dir} do
+      path = fake_cli_with_plugin(dir, "4.3.3", "daisyui", "5.4.3")
+      Application.put_env(:tailwind_port, :required_plugins, ["daisyui"])
+
+      assert :ok = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "skips the check when no plugins are required", %{dir: dir} do
+      path = fake_cli_without_plugin(dir, "4.3.3")
+      Application.put_env(:tailwind_port, :required_plugins, [])
+
+      assert :ok = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "keeps a binary whose plugin version it cannot read", %{dir: dir} do
+      path = Path.join(dir, "tailwindcss")
+      File.write!(path, "#!/bin/sh\necho \"≈ tailwindcss v4.3.3\"\nexit 0\n")
+      File.chmod!(path, 0o755)
+      Application.put_env(:tailwind_port, :required_plugins, [{"daisyui", "5.7.4"}])
+
+      assert :ok = TailwindDownload.install(path, @unreachable_url)
+    end
+
+    test "the wrong version is caught before the build is probed", %{dir: dir} do
+      path = fake_cli_with_plugin(dir, "4.1.16", "daisyui", "5.7.4")
+      Application.put_env(:tailwind_port, :required_plugins, ["daisyui"])
+
+      assert {:error, _} = TailwindDownload.install(path, @unreachable_url)
     end
   end
 end

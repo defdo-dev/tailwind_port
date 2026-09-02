@@ -214,6 +214,88 @@ defmodule Defdo.TailwindPort.BinaryManager do
   end
 
   @doc """
+  Checks whether a binary has a plugin bundled into it.
+
+  Two builds of the same Tailwind release report the same version, so the
+  version alone cannot tell a custom CLI from the stock upstream one. What
+  distinguishes them is what they can compile: a build with daisyUI bundled
+  resolves `@plugin "daisyui"` with nothing installed, and the stock binary
+  fails with `Can't resolve 'daisyui'`.
+
+  The probe compiles in an empty temporary directory on purpose. Plugin
+  resolution walks up from the input file, so probing inside a project that has
+  `node_modules/daisyui` would let the stock binary pass on the project's copy
+  rather than on anything bundled into the binary.
+
+  ## Parameters
+
+    * `path` - Path to the binary
+    * `plugin` - Plugin name as written in `@plugin`, e.g. `"daisyui"`
+
+  ## Returns
+
+    * `{:ok, version}` - Plugin resolved and announced its version, e.g. `"5.7.4"`
+    * `{:ok, nil}` - Plugin resolved but announced no version
+    * `{:error, :plugin_unavailable}` - The binary cannot resolve the plugin
+    * `{:error, {:exec_failed, reason}}` - The binary could not be run
+
+  ## Examples
+
+      {:ok, "5.7.4"} = BinaryManager.probe_plugin("bin/tailwindcss", "daisyui")
+
+      {:error, :plugin_unavailable} =
+        BinaryManager.probe_plugin("bin/stock-tailwindcss", "daisyui")
+
+  """
+  @spec probe_plugin(String.t(), String.t()) ::
+          {:ok, String.t() | nil} | {:error, term()}
+  def probe_plugin(path, plugin) when is_binary(path) and is_binary(plugin) do
+    if File.regular?(path) do
+      dir =
+        Path.join(System.tmp_dir!(), "tailwind_port_probe_#{System.unique_integer([:positive])}")
+
+      try do
+        run_plugin_probe(path, plugin, dir)
+      after
+        File.rm_rf(dir)
+      end
+    else
+      {:error, :enoent}
+    end
+  end
+
+  defp run_plugin_probe(path, plugin, dir) do
+    File.mkdir_p!(dir)
+    input = Path.join(dir, "probe.css")
+    output = Path.join(dir, "probe.out.css")
+    File.write!(input, ~s|@import "tailwindcss";\n@plugin "#{plugin}";\n|)
+
+    {out, status} =
+      System.cmd(path, ["--input", input, "--output", output],
+        stderr_to_stdout: true,
+        cd: dir
+      )
+
+    if status == 0 do
+      {:ok, parse_plugin_version(out, plugin)}
+    else
+      {:error, :plugin_unavailable}
+    end
+  rescue
+    error -> {:error, {:exec_failed, error}}
+  end
+
+  # The plugin announces itself on stderr while compiling, e.g.
+  # `/*! 🌼 daisyUI 5.7.4 */`. Absence is not failure: the compile already
+  # proved the plugin resolved.
+  defp parse_plugin_version(output, plugin) do
+    case Regex.run(~r/#{Regex.escape(plugin)}\s+v?(\d+\.\d+\.\d+[^\s*]*)/i, output) do
+      [_, version] -> version
+      _ -> nil
+    end
+  end
+
+  @doc """
   Makes a binary file executable with appropriate permissions.
 
   This function sets the proper file permissions to make a binary

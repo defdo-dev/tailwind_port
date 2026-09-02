@@ -101,9 +101,30 @@ config :tailwind_port, verify_binary_version: false
 A binary that cannot be interrogated (not executable, or printing no version
 banner) is left in place and logged, never replaced silently.
 
-The check compares versions, not builds: a custom CLI and the stock upstream
-one report the same version string, so this will not detect a binary from the
-wrong source at the right version.
+### Build verification
+
+The version check cannot tell a custom CLI from the stock upstream one — both
+report the same version string. What separates them is what they can compile.
+Name the plugins your build carries and a binary that cannot resolve them is
+replaced, even at the correct version:
+
+```elixir
+config :tailwind_port, required_plugins: ["daisyui"]
+```
+
+Pin the bundled plugin version too, to catch a build that carries an older copy:
+
+```elixir
+config :tailwind_port, required_plugins: [{"daisyui", "5.7.4"}]
+```
+
+The probe compiles `@plugin "daisyui"` in an empty temporary directory. That
+isolation is deliberate: plugin resolution walks up from the input file, so
+probing inside a project holding `node_modules/daisyui` would let a stock
+binary pass on the project's copy rather than on anything bundled into it.
+
+Defaults to `[]`, which skips the check. A plugin that resolves without
+announcing a version is accepted — the compile already proved it is there.
 
 ### Basic Usage
 

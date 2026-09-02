@@ -312,6 +312,43 @@ defmodule Defdo.TailwindPort.ConfigManager do
   end
 
   @doc """
+  Plugins an installed binary must have bundled into it.
+
+  Two builds of the same Tailwind release report the same version, so the
+  version alone cannot tell a custom CLI from the stock upstream one. Naming
+  the plugins your build carries makes that difference checkable.
+
+  Accepts plugin names, or `{name, version}` pairs to also pin the bundled
+  plugin version:
+
+      config :tailwind_port, required_plugins: ["daisyui"]
+
+      config :tailwind_port, required_plugins: [{"daisyui", "5.7.4"}]
+
+  Defaults to `[]`, which skips the check entirely.
+
+  ## Returns
+
+    * A list of `{name, version | nil}` pairs
+
+  """
+  @spec required_plugins() :: [{String.t(), String.t() | nil}]
+  def required_plugins do
+    :tailwind_port
+    |> Application.get_env(:required_plugins, [])
+    |> List.wrap()
+    |> Enum.flat_map(&normalize_required_plugin/1)
+  end
+
+  defp normalize_required_plugin(name) when is_binary(name), do: [{name, nil}]
+
+  defp normalize_required_plugin({name, version})
+       when is_binary(name) and (is_binary(version) or is_nil(version)),
+       do: [{name, version}]
+
+  defp normalize_required_plugin(_other), do: []
+
+  @doc """
   Sets application configuration value.
 
   Updates configuration values for the `:tailwind_port` application.

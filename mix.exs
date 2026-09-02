@@ -110,7 +110,7 @@ defmodule TailwindPort.MixProject do
   defp deps do
     [
       {:telemetry, "~> 1.4"},
-      {:telemetry_metrics, "~> 1.1"},
+      {:telemetry_metrics, "~> 1.2"},
       {:castore, "~> 1.0"},
       {:ex_doc, "~> 0.40", only: [:dev, :docs]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
