@@ -75,6 +75,36 @@ For production releases, prefer baking the binary into the image and using the
 configured path above. Runtime download should stay as a fallback, not the main
 release strategy.
 
+### Binary version verification
+
+An installed binary is checked against `:version` before it is reused. A binary
+that reports a different version is replaced, because a file existing at the
+expected path says nothing about which CLI it actually is — the file name
+carries no version, and a sidecar marker records what the installer intended,
+not what it wrote.
+
+If you bake the binary into the image, set `:version` to the version you baked.
+Otherwise the first install call replaces it:
+
+```elixir
+config :tailwind_port,
+  path: "/opt/defdo/bin/tailwindcss",
+  version: "4.3.3"
+```
+
+To keep whatever binary is on disk regardless of `:version`, turn the check off:
+
+```elixir
+config :tailwind_port, verify_binary_version: false
+```
+
+A binary that cannot be interrogated (not executable, or printing no version
+banner) is left in place and logged, never replaced silently.
+
+The check compares versions, not builds: a custom CLI and the stock upstream
+one report the same version string, so this will not detect a binary from the
+wrong source at the right version.
+
 ### Basic Usage
 
 ```elixir

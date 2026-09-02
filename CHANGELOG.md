@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0
+
+### An installed binary is checked against the configured version
+
+`install/2` reused any file that existed at the target path. Nothing compared
+it to `:version`, so a stale binary was indistinguishable from a correct one:
+a host ran Tailwind v4.1.16 for months with `version: "4.3.2"` configured, and
+every signal available to it — config value, file presence, a `.version`
+sidecar marker — agreed that it was on 4.3.2. Only the binary knew otherwise.
+
+`BinaryManager.installed_version/1` now asks it, by running `--help` and
+reading the banner both v3 and v4 print. `install/2` replaces a binary whose
+version differs, and logs a warning naming both versions.
+
+**This can replace a binary that previous versions kept.** If you bake a binary
+into your image, set `:version` to the version you baked, or opt out:
+
+    config :tailwind_port, verify_binary_version: false
+
+A pre-release `:version` is compared on its release part, so the `4.3.2-rc1`
+channel accepts the `4.3.2` its binary reports rather than re-downloading on
+every boot. A binary that cannot be interrogated is kept and logged, not
+replaced — an unreadable version is not evidence of a wrong one.
+
+**What this does not catch.** The check compares versions, not builds. The
+defdo daisyUI CLI and stock upstream both report `v4.3.3`, so a stock binary
+sitting where a daisyUI one belongs still passes. Distinguishing those needs a
+capability probe, not a version string; `assets.setup` aliases in the consuming
+apps handle it today by never passing `--if-missing`.
+
+**Consumers follow on their own.** `tailwind_compiler` and `defdo_theme` both
+declare `tailwind_port ~> 0.4`, which is two-segment and caps at `< 1.0`.
+Neither has to edit anything to pick this up.
+
+427 tests, 0 failures.
+
 ## 0.4.0
 
 ### Every requirement declares the line it resolves on
