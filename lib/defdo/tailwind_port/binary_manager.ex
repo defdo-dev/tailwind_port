@@ -162,6 +162,58 @@ defmodule Defdo.TailwindPort.BinaryManager do
   end
 
   @doc """
+  Reads the version reported by an installed Tailwind CSS binary.
+
+  The binary is executed with `--help`, which prints its own banner
+  (`≈ tailwindcss v4.3.3`) and exits without compiling anything. Both
+  Tailwind v3 and v4 report their version in that banner.
+
+  This is the only reliable way to know which CLI is on disk. The file name
+  and any sidecar `.version` marker are hints written by whoever installed it,
+  and they go stale silently.
+
+  ## Parameters
+
+    * `path` - Path to the binary
+
+  ## Returns
+
+    * `{:ok, version}` - Version string as reported by the binary, e.g. `"4.3.3"`
+    * `{:error, :enoent}` - No file at `path`
+    * `{:error, {:exec_failed, reason}}` - The file could not be executed
+    * `{:error, :unrecognized_output}` - Ran, but printed no parseable version
+
+  ## Examples
+
+      {:ok, "4.3.3"} = BinaryManager.installed_version("bin/tailwindcss")
+
+      {:error, :enoent} = BinaryManager.installed_version("bin/missing")
+
+  """
+  @spec installed_version(String.t()) :: {:ok, String.t()} | {:error, term()}
+  def installed_version(path) when is_binary(path) do
+    if File.regular?(path) do
+      run_version_probe(path)
+    else
+      {:error, :enoent}
+    end
+  end
+
+  defp run_version_probe(path) do
+    {output, _status} = System.cmd(path, ["--help"], stderr_to_stdout: true)
+    parse_version(output)
+  rescue
+    error -> {:error, {:exec_failed, error}}
+  end
+
+  defp parse_version(output) do
+    case Regex.run(~r/tailwindcss\s+v?(\d+\.\d+\.\d+[^\s]*)/i, output) do
+      [_, version] -> {:ok, version}
+      _ -> {:error, :unrecognized_output}
+    end
+  end
+
+  @doc """
   Makes a binary file executable with appropriate permissions.
 
   This function sets the proper file permissions to make a binary

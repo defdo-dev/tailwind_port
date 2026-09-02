@@ -295,6 +295,23 @@ defmodule Defdo.TailwindPort.ConfigManager do
   end
 
   @doc """
+  Whether an already-installed binary must match the configured version.
+
+  Defaults to `true`. When enabled, an existing binary whose reported version
+  differs from `:version` is replaced instead of being reused.
+
+  Set to `false` to keep whatever binary is on disk, for example when the
+  binary is supplied by the image build rather than downloaded.
+
+      config :tailwind_port, verify_binary_version: false
+
+  """
+  @spec verify_binary_version?() :: boolean()
+  def verify_binary_version? do
+    Application.get_env(:tailwind_port, :verify_binary_version, true) == true
+  end
+
+  @doc """
   Sets application configuration value.
 
   Updates configuration values for the `:tailwind_port` application.

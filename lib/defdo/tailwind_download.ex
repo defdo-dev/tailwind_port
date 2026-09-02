@@ -405,12 +405,73 @@ defmodule Defdo.TailwindDownload do
   defp maybe_download_binary(path, base_url) do
     # Validate before checking file existence to catch invalid types early
     with :ok <- Validation.validate_download_args(path, base_url) do
-      if File.exists?(path) do
-        :ok
-      else
-        download(path, base_url)
+      case installed_binary_status(path) do
+        :absent ->
+          download(path, base_url)
+
+        :matches ->
+          :ok
+
+        {:mismatch, found, wanted} ->
+          Logger.warning(
+            "Tailwind binary at #{path} reports v#{found} but v#{wanted} is configured. Re-downloading."
+          )
+
+          download(path, base_url)
+
+        {:undetermined, reason} ->
+          Logger.warning(
+            "Could not read the version of the Tailwind binary at #{path} (#{inspect(reason)}). Keeping it as is."
+          )
+
+          :ok
       end
     end
+  end
+
+  # A binary that merely exists is not the binary that was asked for. Whoever
+  # put it there may have installed a different version, and nothing on disk
+  # records that: the file name carries no version and a sidecar marker is
+  # written by the installer, not by the binary. Ask the binary itself.
+  defp installed_binary_status(path) do
+    cond do
+      not File.exists?(path) ->
+        :absent
+
+      not ConfigManager.verify_binary_version?() ->
+        :matches
+
+      true ->
+        compare_installed_version(path)
+    end
+  end
+
+  defp compare_installed_version(path) do
+    wanted = configured_version()
+
+    case BinaryManager.installed_version(path) do
+      {:ok, found} ->
+        if same_release?(found, wanted), do: :matches, else: {:mismatch, found, wanted}
+
+      {:error, :enoent} ->
+        :absent
+
+      {:error, reason} ->
+        {:undetermined, reason}
+    end
+  end
+
+  # The configured version may carry a pre-release suffix that identifies a
+  # build channel (`4.3.2-rc1`), while the binary reports only the release it
+  # was cut from (`4.3.2`). Comparing the full strings would re-download on
+  # every boot, so compare the release part.
+  defp same_release?(found, wanted), do: release_part(found) == release_part(wanted)
+
+  defp release_part(version) do
+    version
+    |> to_string()
+    |> String.split("-", parts: 2)
+    |> hd()
   end
 
   defp setup_default_config do
