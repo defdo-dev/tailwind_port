@@ -10,10 +10,10 @@ request: `compile --warnings-as-errors`, `format --check-formatted`,
 `credo --strict`, `test`, `deps.unlock --check-unused`, and a docs build that
 fails on any ex_doc warning.
 
-### `Keyword.t/2` does not exist
+### A two-argument Keyword type does not exist
 
 `@type cli_options :: Keyword.t(cli_option(), cli_value())` named a type Elixir
-does not define — `Keyword.t/0` and `Keyword.t/1` are the only arities. Now
+does not define — `t:Keyword.t/0` and `t:Keyword.t/1` are the only arities. Now
 `[{cli_option(), cli_value()}]`, which is what it meant. Found by reading the
 docs job's warnings, which nothing had been failing on.
 
