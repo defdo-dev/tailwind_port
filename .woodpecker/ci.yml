@@ -27,9 +27,9 @@ steps:
       - |
         set -e
         apt-get update -y && apt-get install -y --no-install-recommends curl git build-essential
-        mix local.hex --force
+        mix local.hex 2.5.1 --force
         mix local.rebar --force
-        mix deps.get
+        sh scripts/ci/deps-get.sh
         mkdir -p priv/bin
         curl -sfLo priv/bin/tailwindcss \
           "https://github.com/tailwindlabs/tailwindcss/releases/download/v$${TAILWIND_CLI_VERSION}/tailwindcss-linux-x64"
