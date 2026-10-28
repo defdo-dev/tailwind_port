@@ -31,7 +31,7 @@ defmodule Defdo.TailwindPort.PoolStalenessTest do
   end
 
   setup %{tmp_dir: dir} do
-    {:ok, _pid} = Pool.start_link(compile_timeout_ms: 3_000, port_ready_timeout: 3_000)
+    _pid = start_supervised!({Pool, [compile_timeout_ms: 3_000, port_ready_timeout: 3_000]})
 
     opts = [
       cmd: fake_cli(dir),

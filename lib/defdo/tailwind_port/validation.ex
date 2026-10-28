@@ -79,7 +79,7 @@ defmodule Defdo.TailwindPort.Validation do
   ## Error Reasons
 
     * `:invalid_args` - Arguments are not a keyword list
-    * `:invalid_name` - Name is not an atom
+    * `:invalid_name` - Name is not an atom, `{:via, module, term}` or `{:global, term}`
     * `:invalid_opts` - Options are not a list
 
   """
@@ -89,7 +89,7 @@ defmodule Defdo.TailwindPort.Validation do
     opts_value = Keyword.get(args, :opts)
 
     cond do
-      Keyword.has_key?(args, :name) && not is_nil(name_value) && not is_atom(name_value) ->
+      Keyword.has_key?(args, :name) && not valid_name?(name_value) ->
         {:error, :invalid_name}
 
       Keyword.has_key?(args, :opts) && not is_nil(opts_value) && not is_list(opts_value) ->
@@ -101,6 +101,11 @@ defmodule Defdo.TailwindPort.Validation do
   end
 
   def validate_start_args(_), do: {:error, :invalid_args}
+
+  defp valid_name?(name) when is_atom(name), do: true
+  defp valid_name?({:via, module, _term}) when is_atom(module), do: true
+  defp valid_name?({:global, _term}), do: true
+  defp valid_name?(_), do: false
 
   @doc """
   Validates arguments for port creation.

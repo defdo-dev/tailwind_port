@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.6.0
+
+A native Tailwind v4 CLI costs 150–300 MB of RSS. The pool could start one per
+distinct configuration without limit, leave failed ones running forever, and
+lose track of all of them when it restarted. This release makes it a bounded,
+supervised, leak-free execution engine. Minor bump because error shapes and
+pool-managed file lifetimes change (see "Behaviour changes"); the public API
+(`compile/2`, `batch_compile/1`, `get_stats/0`, `warm_up/1`) keeps its
+signatures.
+
+### The size cap is enforced on every creation
+
+`max_pool_size` was only checked when a port for the *same* configuration was
+busy, and the pool is keyed by configuration, so N tenants with N configs ran N
+CLIs. Every new port now counts against the cap: when full, the least recently
+used idle port is retired; when every port is busy the caller waits in a
+bounded queue (`:max_queue`, default 8) and gets `{:error, :busy}` once it is
+full, or `{:error, :checkout_timeout}` after `:checkout_timeout_ms` (default
+30 s).
+
+### A failed compile no longer pins a CLI forever
+
+Only a successful compile returned a port to `:idle`; timeouts, missing output
+and staging errors left it `:busy`, the idle sweep never touched it, and the
+next compile overwrote its map entry, orphaning a live process. Every error
+path now retires the port: the process is stopped, its entry deleted, its
+pool-managed temp files removed. `warm_up/1` no longer leaves ports `:busy`.
+
+### Ports are supervised and die with the pool
+
+CLI processes were `start_link`ed and immediately unlinked. They now run under
+`TailwindPort.DynamicSupervisor` (`restart: :temporary`), registered in a new
+`TailwindPort.PoolRegistry`. The pool traps exits and stops every port in
+`terminate/2`; a pool that was killed outright reaps its predecessor's ports
+when it starts again.
+
+`Standalone.terminate/2` read the OS pid *after* `Port.close/1`, when it is
+always nil, so its orphan kill never ran — and a CLI started with `-i` skips
+the `tailwind_cli.sh` stdin watchdog. It now reads the OS pid first and sends
+`TERM` if the process outlived the closed port.
+
+### The pool no longer compiles inside its own process
+
+Staging, starting the CLI and waiting up to `compile_timeout_ms` for output all
+ran in `handle_call`, serialising every tenant behind the slowest and queueing
+content binaries in an unbounded mailbox. The pool now only checks ports out
+and in (monitoring the caller); the compile runs in the calling process. A
+caller that dies mid-compile has its port retired.
+
+### Single flight
+
+Concurrent compiles of identical content with an identical configuration share
+one CLI run and one result (`:single_flight`, default `true`;
+`get_stats().single_flight_hits`).
+
+### Idle timeout is configurable; one-shot ports do not linger
+
+`:port_idle_timeout_ms` (default 10 min; 30–60 s recommended in containers)
+applies to idle watch-mode ports, swept every `:cleanup_interval` (now wired,
+default 60 s). `0` stops a port as soon as its compile finishes (scale to
+zero). Ports started without `:watch` compile once and exit, so they are
+retired at check-in instead of staying in the pool.
+
+### Smaller leaks
+
+* No atom per port: ports are named through the registry, not
+  `String.to_atom/1`. `Validation.validate_start_args/1` accepts
+  `{:via, module, term}` and `{:global, term}` names.
+* Pool-managed scratch files under `System.tmp_dir!()/tailwind_port` are
+  deleted when their port retires.
+* Output polling stats the file (size + mtime) and reads it once when stable,
+  instead of reading and hashing the whole file every 75 ms.
+* The pool runs with `fullsweep_after: 20` and `hibernate_after: 15_000`.
+
+### Behaviour changes
+
+* `{:error, :busy}` replaces `{:error, :pool_exhausted}`; new
+  `{:error, :checkout_timeout}`.
+* When the pool supplied the `:output` path, `result.output_path` names a file
+  that has already been deleted; use `result.compiled_css`.
+* `warm_up/1` only pre-starts `:watch` configurations, within the cap.
+* `batch_compile/1` runs in the caller; `total_compilations` is no longer
+  counted twice for batch operations.
+* Removed the unused `:enable_watch_mode` and `:enable_batching` defaults
+  (passing them is harmless and ignored).
+* New stats keys: `busy_ports`, `max_pool_size`, `single_flight_hits`.
+
 ## 0.5.1
 
 ### A pull request in this repo ran nothing
