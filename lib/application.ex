@@ -8,6 +8,9 @@ defmodule TailwindPort.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      # Names the CLI processes the pool starts, without minting an atom per
+      # process, and lets a restarted pool find ports its predecessor left.
+      {Registry, keys: :unique, name: TailwindPort.PoolRegistry},
       # Initialize a dynamic supervisor in order to allow dynamic instances.
       {DynamicSupervisor, name: TailwindPort.DynamicSupervisor, strategy: :one_for_one}
     ]

@@ -32,11 +32,19 @@ defmodule Defdo.TailwindPort.PoolTest do
   setup do
     # Ensure clean state before each test
     case Process.whereis(Pool) do
-      pid when is_pid(pid) -> GenServer.stop(pid)
+      pid when is_pid(pid) -> stop_pool(pid)
       nil -> :ok
     end
 
     :ok
+  end
+
+  # The pool traps exits, so one linked to a finished test may still be
+  # shutting down; it is gone either way once this returns.
+  defp stop_pool(pid) do
+    GenServer.stop(pid)
+  catch
+    :exit, _ -> :ok
   end
 
   describe "start_link/1" do
@@ -47,19 +55,19 @@ defmodule Defdo.TailwindPort.PoolTest do
     end
 
     test "returns already_started if already running" do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       assert {:error, {:already_started, _pid}} = Pool.start_link()
     end
 
     test "accepts custom options" do
       opts = [max_pool_size: 5, enable_watch_mode: false]
-      assert {:ok, _pid} = Pool.start_link([compile_timeout_ms: 2_000] ++ opts)
+      assert _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000] ++ opts})
     end
   end
 
   describe "compile/2" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -118,7 +126,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "batch_compile/1" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -195,7 +203,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "get_stats/0" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -240,7 +248,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "warm_up/1" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -272,7 +280,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "port pool management" do
     setup do
-      {:ok, _pid} = Pool.start_link(max_pool_size: 2, compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [max_pool_size: 2, compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -320,7 +328,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "error handling and recovery" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -359,7 +367,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "telemetry integration" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
 
       # Attach test telemetry handler
       test_pid = self()
@@ -426,7 +434,7 @@ defmodule Defdo.TailwindPort.PoolTest do
 
   describe "configuration hashing" do
     setup do
-      {:ok, _pid} = Pool.start_link(compile_timeout_ms: 2_000)
+      _pid = start_supervised!({Pool, [compile_timeout_ms: 2_000]})
       :ok
     end
 
@@ -467,11 +475,7 @@ defmodule Defdo.TailwindPort.PoolTest do
         nil -> :ok
       end
 
-      {:ok, pid} = Pool.start_link(compile_timeout_ms: 15_000)
-
-      on_exit(fn ->
-        if Process.alive?(pid), do: GenServer.stop(pid)
-      end)
+      start_supervised!({Pool, [compile_timeout_ms: 15_000]})
 
       tmp_dir =
         Path.join(System.tmp_dir!(), "tailwind_opt_integration_#{System.unique_integer()}")

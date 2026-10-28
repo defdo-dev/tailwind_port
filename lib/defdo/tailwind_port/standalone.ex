@@ -534,19 +534,30 @@ defmodule Defdo.TailwindPort.Standalone do
   # Note the tailwind_cli.sh above hijacks stdin, so you won't be able to communicate with
   # the underlying software via stdin
   # (on the positive side, software that reads from stdin typically terminates when stdin closes).
-  def terminate(reason, %{port: port}) do
-    if Port.info(port) do
-      Port.close(port)
+  #
+  # Closing the port is not enough on its own: a CLI started directly (with
+  # `-i`, which skips the wrapper) may ignore the closed stdin, and a watcher
+  # certainly does. Read the OS pid BEFORE closing — afterwards Port.info/1 is
+  # nil and the process can no longer be found — then make sure it is gone.
+  def terminate(reason, %{port: port}) when is_port(port) do
+    os_pid =
+      case Port.info(port, :os_pid) do
+        {:os_pid, os_pid} -> os_pid
+        _ -> nil
+      end
 
-      port
-      |> Port.info()
-      |> warn_if_orphaned()
-    else
-      Logger.debug("Port: #{inspect(port)} doesn't exist.")
+    try do
+      Port.close(port)
+    rescue
+      ArgumentError -> :ok
     end
+
+    kill_os_process(os_pid)
 
     {:shutdown, reason}
   end
+
+  def terminate(reason, _state), do: {:shutdown, reason}
 
   def handle_continue({:new, [opts: []]}, state) do
     {:noreply, state}
@@ -844,19 +855,16 @@ defmodule Defdo.TailwindPort.Standalone do
     end
   end
 
-  defp warn_if_orphaned(port_info) do
-    if os_pid = port_info[:os_pid] do
-      Logger.warning("Orphaned OS process: #{os_pid}")
+  defp kill_os_process(nil), do: :ok
 
-      # Attempt to kill the orphaned process
-      case System.cmd("kill", ["-TERM", "#{os_pid}"], stderr_to_stdout: true) do
-        {_, 0} ->
-          Logger.info("Successfully terminated orphaned process #{os_pid}")
-
-        {output, _} ->
-          Logger.warning("Failed to terminate orphaned process #{os_pid}: #{output}")
-      end
+  defp kill_os_process(os_pid) do
+    with {:unix, _} <- :os.type(),
+         {_, 0} <- System.cmd("kill", ["-0", "#{os_pid}"], stderr_to_stdout: true) do
+      Logger.debug("Stopping CLI OS process #{os_pid}")
+      System.cmd("kill", ["-TERM", "#{os_pid}"], stderr_to_stdout: true)
     end
+
+    :ok
   end
 
   # Helper function to attempt CSS regeneration with multiple fallback strategies
