@@ -82,8 +82,10 @@ defmodule Defdo.TailwindPort.ProjectSetupTest do
 
     test "handles permission errors gracefully" do
       # Create a directory we can't write to (simulate permission error)
-      # This test might not work on all systems or when running as root in CI, so we'll make it conditional
-      if :os.type() == {:unix, :linux} and System.get_env("CI") != "true" do
+      # Root ignores directory permissions, so the mkdir succeeds there. Gate on
+      # the effective uid, not on the CI env var: GitHub Actions set CI=true,
+      # Woodpecker sets CI=woodpecker and runs the container as root.
+      if :os.type() == {:unix, :linux} and not running_as_root?() do
         File.mkdir_p("readonly_parent")
         # Read-only
         File.chmod("readonly_parent", 0o444)
@@ -392,6 +394,13 @@ defmodule Defdo.TailwindPort.ProjectSetupTest do
       Enum.each(phoenix_variants, fn variant ->
         assert String.contains?(content, variant)
       end)
+    end
+  end
+
+  defp running_as_root? do
+    case System.cmd("id", ["-u"], stderr_to_stdout: true) do
+      {"0\n", 0} -> true
+      _ -> false
     end
   end
 end

@@ -1,0 +1,47 @@
+---
+# CI pipeline: test and lint on every push / PR.
+#
+# Migrated from GitHub Actions (.github/workflows/ci.yml). Actions on the
+# defdo-dev org is gated by GitHub billing, and the Hex key stored there was
+# revoked (0.6.0 publish failed with "API key revoked"). Woodpecker is
+# self-hosted; this mirrors tailwind_compiler and tailwind_builder.
+#
+# `platform: linux/amd64` keeps the job off the darwin/arm64 exec agent, which
+# is reserved for native macOS binary builds.
+
+labels:
+  platform: linux/amd64
+
+when:
+  - event: [push, pull_request, manual]
+
+steps:
+  - name: test
+    image: elixir:1.19.5
+    environment:
+      MIX_ENV: test
+      # Pinned deliberately. This library's whole subject is that a binary
+      # which merely exists is not the binary you asked for.
+      TAILWIND_CLI_VERSION: "4.3.3"
+    commands:
+      - |
+        set -e
+        apt-get update -y && apt-get install -y --no-install-recommends curl git build-essential
+        mix local.hex --force
+        mix local.rebar --force
+        mix deps.get
+        mkdir -p priv/bin
+        curl -sfLo priv/bin/tailwindcss \
+          "https://github.com/tailwindlabs/tailwindcss/releases/download/v$${TAILWIND_CLI_VERSION}/tailwindcss-linux-x64"
+        chmod +x priv/bin/tailwindcss
+        priv/bin/tailwindcss --help | head -1
+        mix compile --warnings-as-errors
+        mix format --check-formatted
+        mix credo --strict
+        mix test
+        mix deps.unlock --check-unused
+        # `mix docs` does not fail on a broken reference; turn warnings into a check.
+        MIX_ENV=dev mix docs 2>&1 | tee docs.log
+        if grep -q "warning:" docs.log; then
+          echo "mix docs emitted warnings"; grep "warning:" docs.log; exit 1
+        fi
