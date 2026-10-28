@@ -51,9 +51,9 @@ steps:
           echo "ERROR: version mismatch: release=$${VERSION} mix.exs=$${MIX_VERSION}"; exit 1
         fi
         echo "version validation passed: $${VERSION}"
-        mix local.hex --force
+        mix local.hex 2.5.1 --force
         mix local.rebar --force
-        mix deps.get
+        sh scripts/ci/deps-get.sh
         mkdir -p priv/bin
         curl -sfLo priv/bin/tailwindcss \
           "https://github.com/tailwindlabs/tailwindcss/releases/download/v$${TAILWIND_CLI_VERSION}/tailwindcss-linux-x64"
@@ -72,9 +72,9 @@ steps:
       - |
         set -e
         if [ -z "$${HEX_API_KEY}" ]; then echo "ERROR: HEX_API_KEY is required to publish"; exit 1; fi
-        mix local.hex --force
+        mix local.hex 2.5.1 --force
         mix local.rebar --force
-        mix deps.get --only prod
+        sh scripts/ci/deps-get.sh --only prod
         # Package and docs are published SEPARATELY on purpose: `mix hex.publish`
         # does both, and when its docs phase re-submits the release Hex answers
         # "must include the --replace flag", turning a published release red.
@@ -94,8 +94,8 @@ steps:
         if [ -z "$${FOSS_PUBLISH_TOKEN}" ]; then echo "foss_publish_token not set; skipping docs upload"; exit 0; fi
         apt-get update -y && apt-get install -y --no-install-recommends curl
         VERSION="$${CI_COMMIT_TAG:-$${PUBLISH_VERSION}}"
-        mix local.hex --force && mix local.rebar --force
-        mix deps.get
+        mix local.hex 2.5.1 --force && mix local.rebar --force
+        sh scripts/ci/deps-get.sh
         mix docs
         tar -czf docs.tar.gz -C doc .
         HTTP_CODE=$(curl -s -o upload.log -w '%{http_code}' -X POST \
