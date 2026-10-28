@@ -27,7 +27,7 @@ steps:
       - |
         set -e
         apt-get update -y && apt-get install -y --no-install-recommends curl git build-essential
-        mix local.hex 2.5.1 --force
+        mix local.hex --force
         mix local.rebar --force
         sh scripts/ci/deps-get.sh
         mkdir -p priv/bin
